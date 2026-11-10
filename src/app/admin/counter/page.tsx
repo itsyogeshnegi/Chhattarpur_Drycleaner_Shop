@@ -418,13 +418,13 @@ export default function CounterManagementPage() {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <span className="text-xs uppercase font-extrabold text-brand-700 tracking-wider">
+          <span className="text-[11px] uppercase font-extrabold text-brand-700 tracking-wider">
             POS Terminal & Register
           </span>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Counter Management</h1>
-          <p className="text-xs text-slate-500">
+          <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Counter Management</h1>
+          <p className="text-[11px] text-slate-500">
             Create orders, itemize dry cleaning & steam pressing, apply discounts, and attach garment damage photos.
           </p>
         </div>
@@ -521,7 +521,7 @@ export default function CounterManagementPage() {
       {/* POS WORKSPACE GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT: Service Item Catalog Selector (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+        <div className="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-brand-600" />
@@ -769,7 +769,7 @@ export default function CounterManagementPage() {
         {/* RIGHT: Current Order Bill & Customer Form (5 cols) */}
         <form
           onSubmit={handleCreateOrder}
-          className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-5"
+          className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4"
         >
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">

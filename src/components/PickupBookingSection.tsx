@@ -17,6 +17,7 @@ import {
   Bed,
   ShieldCheck,
   Truck,
+  Loader2,
 } from 'lucide-react';
 
 interface PopularPriceItem {
@@ -71,6 +72,9 @@ export default function PickupBookingSection({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Prevent duplicate hits while submitting
+    if (loading) return;
+
     // 1. Requirement: Customer must have an account before booking
     if (!customer) {
       openAuthModal('register');
@@ -86,6 +90,37 @@ export default function PickupBookingSection({
     setLoading(true);
 
     try {
+      // Check if user has items selected in the Rate Calculator estimate
+      let orderItems = [
+        {
+          name: 'Doorstep Pickup Request',
+          serviceType: 'dry_clean',
+          rate: 0,
+          quantity: 1,
+          notes: `${formData.timeSlot} | Scheduled pickup for ${formData.pickupDate}`,
+        },
+      ];
+
+      if (typeof window !== 'undefined') {
+        try {
+          const rawEstimate = localStorage.getItem('alharam_active_estimate');
+          if (rawEstimate) {
+            const parsed = JSON.parse(rawEstimate);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              orderItems = parsed.map((it: { name?: string; serviceType?: string; rate?: number; quantity?: number }) => ({
+                name: it.name || 'Garment Item',
+                serviceType: it.serviceType || 'dry_clean',
+                rate: Number(it.rate) || 0,
+                quantity: Number(it.quantity) || 1,
+                notes: `${it.serviceType === 'steam_iron' ? 'Steam Press' : 'Dry Clean'} | Slot: ${formData.timeSlot}`,
+              }));
+            }
+          }
+        } catch (err) {
+          console.error('Error reading active estimate:', err);
+        }
+      }
+
       const res = await fetch('/api/orders/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,15 +131,7 @@ export default function PickupBookingSection({
             email: customer.email || '',
             address: formData.address.trim(),
           },
-          items: [
-            {
-              name: 'Doorstep Pickup Request',
-              serviceType: 'dry_clean',
-              rate: 0,
-              quantity: 1,
-              notes: `${formData.timeSlot} | Scheduled pickup for ${formData.pickupDate}`,
-            },
-          ],
+          items: orderItems,
           pickupDate: formData.pickupDate,
           internalNotes: `Online request: ${formData.pickupDate} (${formData.timeSlot}) by registered customer ${customer.userId}`,
         }),
@@ -113,6 +140,13 @@ export default function PickupBookingSection({
       const data = await res.json();
       if (data.success) {
         setBookedOrder(data.order);
+        // Clear estimate cart upon successful booking
+        try {
+          localStorage.removeItem('alharam_active_estimate');
+        } catch {}
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('clear-cart'));
+        }
       } else {
         setError(data.message || data.error || 'Failed to submit pickup request');
       }
@@ -215,6 +249,7 @@ export default function PickupBookingSection({
 
           {/* Right Column: Book a Pickup Card (5 cols) */}
           <div id="book-pickup" className="lg:col-span-5 scroll-mt-24">
+            <span id="pickup-booking" className="block -mt-24 pt-24 invisible pointer-events-none" />
             {bookedOrder ? (
               /* Success State */
               <div className="bg-white border-2 border-emerald-400 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-lg shadow-emerald-500/10">
@@ -421,10 +456,13 @@ export default function PickupBookingSection({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm py-3.5 rounded-xl transition shadow-md shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                    className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm py-3.5 rounded-xl transition shadow-md shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                   >
                     {loading ? (
-                      <span>Scheduling Free Pickup...</span>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Scheduling Free Pickup...</span>
+                      </>
                     ) : (
                       <>
                         <Truck className="w-4 h-4" />

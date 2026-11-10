@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
-import { Menu, X, Phone, LogOut, UserPlus } from 'lucide-react';
+import { Menu, X, Phone, LogOut, User } from 'lucide-react';
+import CustomerHistoryModal from '@/components/CustomerHistoryModal';
 
 export default function Navbar() {
-  const { customer, openAuthModal, logout } = useCustomerAuth();
+  const { customer, logout } = useCustomerAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-2xs">
@@ -81,19 +83,31 @@ export default function Navbar() {
               <span>+91 87005 48416</span>
             </a>
 
-            {/* Customer Account Pill */}
+            {/* Customer Account & Order History Pill */}
             {customer ? (
-              <div className="flex items-center gap-1.5 bg-sky-50 border border-brand-200 rounded-full pl-2 pr-3 py-1 text-xs">
-                <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[11px]">
-                  {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
-                </div>
-                <span className="font-bold text-slate-800 max-w-[100px] truncate">
-                  {customer.name.split(' ')[0]}
-                </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setHistoryModalOpen(true)}
+                  className="flex items-center gap-2 bg-gradient-to-r from-sky-50 to-brand-50 hover:from-sky-100 hover:to-brand-100 border border-brand-200 rounded-full pl-1.5 pr-3 py-1 text-xs transition shadow-2xs group"
+                  title="View Customer Profile & Past Orders"
+                >
+                  <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-black text-[11px] shadow-xs group-hover:scale-105 transition-transform">
+                    {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
+                  </div>
+                  <div className="text-left">
+                    <span className="font-extrabold text-slate-900 max-w-[90px] truncate block leading-tight">
+                      {customer.name.split(' ')[0]}
+                    </span>
+                    <span className="text-[9px] text-brand-600 font-bold block leading-none">
+                      Orders &amp; Bills
+                    </span>
+                  </div>
+                </button>
                 <button
                   onClick={logout}
                   title="Sign Out"
-                  className="text-slate-400 hover:text-red-600 ml-1 transition"
+                  className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-slate-100 transition"
                   aria-label="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -102,10 +116,14 @@ export default function Navbar() {
             ) : (
               <button
                 type="button"
-                onClick={() => openAuthModal('register')}
-                className="text-xs font-bold text-slate-600 hover:text-brand-600 px-2 py-1.5 rounded-lg transition"
+                onClick={() => setHistoryModalOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full transition shadow-2xs group"
+                title="Customer History & Sign In"
               >
-                Sign In
+                <div className="w-5 h-5 rounded-full bg-sky-100 text-brand-600 flex items-center justify-center">
+                  <User className="w-3 h-3" />
+                </div>
+                <span>My Orders</span>
               </button>
             )}
 
@@ -120,19 +138,19 @@ export default function Navbar() {
 
           {/* Mobile Right Controls */}
           <div className="flex md:hidden items-center gap-2">
-            {customer ? (
-              <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => openAuthModal('register')}
-                className="bg-sky-50 text-brand-700 border border-brand-200 text-xs font-bold px-3 py-1.5 rounded-full"
-              >
-                Sign In
-              </button>
-            )}
+            {/* Mobile Profile / History Icon Button */}
+            <button
+              type="button"
+              onClick={() => setHistoryModalOpen(true)}
+              aria-label="My Orders & Profile"
+              className="w-8 h-8 rounded-full bg-sky-50 border border-brand-200 text-brand-700 flex items-center justify-center font-black text-xs shadow-2xs active:scale-95"
+            >
+              {customer ? (
+                customer.name ? customer.name.charAt(0).toUpperCase() : 'C'
+              ) : (
+                <User className="w-4 h-4 text-brand-600" />
+              )}
+            </button>
 
             <a
               href="#book-pickup"
@@ -157,42 +175,54 @@ export default function Navbar() {
         <div className="md:hidden border-b border-slate-200 bg-white px-5 py-5 space-y-3.5 text-sm font-medium animate-fade-in">
           {customer ? (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setHistoryModalOpen(true);
+                }}
+                className="flex items-center gap-2 text-left min-w-0"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
                   {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
                 </div>
-                <div>
-                  <p className="font-bold text-emerald-900">{customer.name}</p>
-                  <p className="text-[10px] text-emerald-700">+91 {customer.phone || customer.userId}</p>
+                <div className="min-w-0">
+                  <p className="font-bold text-emerald-900 truncate">{customer.name}</p>
+                  <p className="text-[10px] text-emerald-700 font-semibold">View Order History &amp; Invoices →</p>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={() => {
                   logout();
                   setMobileMenuOpen(false);
                 }}
-                className="text-xs font-bold text-red-600 bg-white px-2.5 py-1 rounded-lg border border-red-200"
+                className="text-xs font-bold text-red-600 bg-white px-2.5 py-1 rounded-lg border border-red-200 shrink-0 ml-2"
               >
                 Sign Out
               </button>
             </div>
           ) : (
-            <div className="p-3 bg-brand-50 border border-brand-200 rounded-xl flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black text-brand-900">Customer Account</p>
-                <p className="text-[10px] text-slate-500">Sign in to book &amp; track pickups</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setHistoryModalOpen(true);
+              }}
+              className="w-full text-left p-3 bg-brand-50 border border-brand-200 rounded-xl flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-brand-900">Customer Account &amp; History</p>
+                  <p className="text-[10px] text-slate-500">View live status &amp; dual invoices</p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openAuthModal('register');
-                }}
-                className="text-xs font-bold text-white bg-brand-600 px-3 py-1.5 rounded-lg"
-              >
-                Sign In / Join
-              </button>
-            </div>
+              <span className="text-xs font-bold text-brand-700 bg-white px-2 py-1 rounded-lg border border-brand-200">
+                Open
+              </span>
+            </button>
           )}
 
           <Link
@@ -256,6 +286,12 @@ export default function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Customer Profile & History Modal */}
+      <CustomerHistoryModal
+        isOpen={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+      />
     </header>
   );
 }

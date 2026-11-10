@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import {
   Search,
@@ -44,6 +44,53 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
   const [activeTab, setActiveTab] = useState<'all' | 'mens' | 'womens' | 'home' | 'laundry'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<Record<string, CartItem>>({});
+
+  // Listen for 'clear-cart' custom event (fired when pickup booking completes successfully)
+  useEffect(() => {
+    const handleClearCart = () => {
+      setCart({});
+      try {
+        localStorage.removeItem('alharam_active_estimate');
+      } catch {}
+    };
+
+    window.addEventListener('clear-cart', handleClearCart);
+    return () => window.removeEventListener('clear-cart', handleClearCart);
+  }, []);
+
+  // Sync cart with localStorage and restore estimate if page reloaded
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      try {
+        const saved = localStorage.getItem('alharam_active_estimate');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const restored: Record<string, CartItem> = {};
+            for (const it of parsed) {
+              if (it && it.name && it.serviceType) {
+                const key = `${it.name}_${it.serviceType}`;
+                restored[key] = it;
+              }
+            }
+            setCart(restored);
+          }
+        }
+      } catch {}
+      return;
+    }
+
+    const items = Object.values(cart);
+    try {
+      if (items.length > 0) {
+        localStorage.setItem('alharam_active_estimate', JSON.stringify(items));
+      } else {
+        localStorage.removeItem('alharam_active_estimate');
+      }
+    } catch {}
+  }, [cart]);
 
   const filteredServices = useMemo(() => {
     return initialServices.filter((item) => {
@@ -256,8 +303,13 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
 
               {cartList.length > 0 && (
                 <button
-                  onClick={() => setCart({})}
-                  className="text-xs font-bold text-red-500 hover:text-red-700 transition flex items-center gap-1"
+                  onClick={() => {
+                    setCart({});
+                    try {
+                      localStorage.removeItem('alharam_active_estimate');
+                    } catch {}
+                  }}
+                  className="text-xs font-bold text-red-500 hover:text-red-700 transition flex items-center gap-1 active:scale-95"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear</span>
