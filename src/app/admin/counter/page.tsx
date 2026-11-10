@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import {
   Search,
+  Edit2,
+  Save,
+  Check,
+  X,
+  SlidersHorizontal,
   Plus,
   Minus,
   Trash2,
@@ -58,6 +63,122 @@ export default function CounterManagementPage() {
   const [catalogCategory, setCatalogCategory] = useState<'all' | 'mens' | 'womens' | 'home' | 'laundry'>('all');
   const [catalogSearch, setCatalogSearch] = useState('');
   const [loadingCatalog, setLoadingCatalog] = useState(true);
+
+  // Garment Rate Catalog Management State (View / Edit Rates)
+  const [catalogMode, setCatalogMode] = useState<'pos' | 'edit'>('pos');
+  const [editingRates, setEditingRates] = useState<
+    Record<string, { dryCleanRate: number; steamIronRate: number; unit: string }>
+  >({});
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [savedSuccessId, setSavedSuccessId] = useState<string | null>(null);
+  const [showNewGarmentModal, setShowNewGarmentModal] = useState(false);
+  const [newGarment, setNewGarment] = useState({
+    name: '',
+    category: 'mens',
+    dryCleanRate: 100,
+    steamIronRate: 30,
+    unit: 'piece',
+  });
+
+  const handleRateFieldChange = (
+    itemId: string,
+    field: 'dryCleanRate' | 'steamIronRate' | 'unit',
+    value: string | number
+  ) => {
+    const item = catalog.find((i) => i._id === itemId);
+    const existing = editingRates[itemId] || {
+      dryCleanRate: item?.dryCleanRate ?? 0,
+      steamIronRate: item?.steamIronRate ?? 0,
+      unit: item?.unit ?? 'piece',
+    };
+
+    setEditingRates((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...existing,
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveRate = async (item: RateItem) => {
+    const current = editingRates[item._id] || {
+      dryCleanRate: item.dryCleanRate,
+      steamIronRate: item.steamIronRate || 0,
+      unit: item.unit || 'piece',
+    };
+
+    try {
+      setSavingItemId(item._id);
+      const res = await fetch(`/api/services/${item._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryCleanRate: current.dryCleanRate,
+          steamIronRate: current.steamIronRate,
+          unit: current.unit,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setCatalog((prev) =>
+          prev.map((i) =>
+            i._id === item._id
+              ? {
+                  ...i,
+                  dryCleanRate: current.dryCleanRate,
+                  steamIronRate: current.steamIronRate,
+                  unit: current.unit,
+                }
+              : i
+          )
+        );
+        setSavedSuccessId(item._id);
+        setTimeout(() => setSavedSuccessId(null), 2500);
+      } else {
+        alert(data.message || 'Failed to update rate');
+      }
+    } catch {
+      alert('Network error saving rate');
+    } finally {
+      setSavingItemId(null);
+    }
+  };
+
+  const handleCreateGarment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGarment.name.trim()) {
+      alert('Please enter a garment name');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/services', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newGarment),
+      });
+
+      const data = await res.json();
+      if (data.success && data.item) {
+        setCatalog((prev) => [data.item, ...prev]);
+        setShowNewGarmentModal(false);
+        setNewGarment({
+          name: '',
+          category: 'mens',
+          dryCleanRate: 100,
+          steamIronRate: 30,
+          unit: 'piece',
+        });
+        alert(`Garment "${data.item.name}" added to catalog!`);
+      } else {
+        alert(data.message || 'Failed to create garment');
+      }
+    } catch {
+      alert('Failed to connect to server');
+    }
+  };
 
   // Customer Details
   const [customer, setCustomer] = useState({
@@ -400,13 +521,54 @@ export default function CounterManagementPage() {
       {/* POS WORKSPACE GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT: Service Item Catalog Selector (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-7 bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-brand-600" />
-              <h2 className="font-extrabold text-slate-900 text-base">Garment Rate Catalog</h2>
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-base">Garment Rate Catalog</h2>
+                <span className="text-[11px] text-slate-400">{filteredCatalog.length} services available</span>
+              </div>
             </div>
-            <span className="text-xs text-slate-400">{filteredCatalog.length} services available</span>
+
+            <div className="flex items-center gap-2">
+              {/* Mode Switcher: POS Billing vs Edit Rates */}
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setCatalogMode('pos')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    catalogMode === 'pos'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  🛒 Add to Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCatalogMode('edit')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    catalogMode === 'edit'
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  ✏️ Edit Rates
+                </button>
+              </div>
+
+              {/* Add New Garment to Catalog */}
+              <button
+                type="button"
+                onClick={() => setShowNewGarmentModal(true)}
+                className="bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition shrink-0"
+                title="Add new garment service"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Add Garment</span>
+              </button>
+            </div>
           </div>
 
           {/* Search & Tabs */}
@@ -446,8 +608,8 @@ export default function CounterManagementPage() {
             </div>
           </div>
 
-          {/* Catalog Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[500px] overflow-y-auto pr-1">
+          {/* Catalog Grid / List */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[520px] overflow-y-auto pr-1">
             {loadingCatalog ? (
               <div className="col-span-full py-12 text-center text-xs text-slate-400">
                 Loading tariff catalog...
@@ -456,7 +618,96 @@ export default function CounterManagementPage() {
               <div className="col-span-full py-12 text-center text-xs text-slate-400">
                 No items found
               </div>
+            ) : catalogMode === 'edit' ? (
+              // EDIT RATES CATALOG MODE
+              filteredCatalog.map((item) => {
+                const currentEdit = editingRates[item._id] || {
+                  dryCleanRate: item.dryCleanRate,
+                  steamIronRate: item.steamIronRate || 0,
+                  unit: item.unit || 'piece',
+                };
+
+                return (
+                  <div
+                    key={item._id}
+                    className="p-3 bg-white border border-brand-200 rounded-2xl shadow-xs space-y-2 hover:border-brand-400 transition"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-xs block">{item.name}</span>
+                        <span className="text-[9px] uppercase font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">
+                          {item.category}
+                        </span>
+                      </div>
+                      <span className="text-[9px] uppercase font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                        {item.unit}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">
+                          Dry Clean Rate (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={currentEdit.dryCleanRate}
+                          onChange={(e) =>
+                            handleRateFieldChange(item._id, 'dryCleanRate', Number(e.target.value) || 0)
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-1 focus:ring-brand-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">
+                          Press / Iron Rate (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={currentEdit.steamIronRate}
+                          onChange={(e) =>
+                            handleRateFieldChange(item._id, 'steamIronRate', Number(e.target.value) || 0)
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-1 focus:ring-brand-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <span className="text-[10px] text-slate-400">Unit: {item.unit}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveRate(item)}
+                        disabled={savingItemId === item._id}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
+                          savedSuccessId === item._id
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-brand-600 hover:bg-brand-700 text-white shadow-xs'
+                        }`}
+                      >
+                        {savingItemId === item._id ? (
+                          <span>Saving...</span>
+                        ) : savedSuccessId === item._id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Saved!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save Rate</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
+              // POS BILLING SELECTION MODE
               filteredCatalog.map((item, idx) => (
                 <div
                   key={item._id || `${item.category}-${item.name}-${idx}`}
@@ -465,9 +716,23 @@ export default function CounterManagementPage() {
                   <div>
                     <div className="flex justify-between items-start">
                       <span className="font-bold text-slate-900 text-xs">{item.name}</span>
-                      <span className="text-[9px] uppercase font-semibold text-slate-400 bg-white border border-slate-200 px-1 py-0.5 rounded">
-                        {item.unit}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] uppercase font-semibold text-slate-400 bg-white border border-slate-200 px-1 py-0.5 rounded">
+                          {item.unit}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCatalogMode('edit');
+                            handleRateFieldChange(item._id, 'dryCleanRate', item.dryCleanRate);
+                            handleRateFieldChange(item._id, 'steamIronRate', item.steamIronRate || 0);
+                          }}
+                          title="Edit this rate"
+                          className="p-1 rounded text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                     {item.rateRangeText && (
                       <p className="text-[10px] text-amber-700 font-medium">{item.rateRangeText}</p>
@@ -786,6 +1051,128 @@ export default function CounterManagementPage() {
           </button>
         </form>
       </div>
+      {/* Add New Garment to Catalog Modal */}
+      {showNewGarmentModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base">Add New Garment to Catalog</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewGarmentModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateGarment} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                  Garment Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Silk Designer Saree / Woolen Blazer"
+                  value={newGarment.name}
+                  onChange={(e) => setNewGarment({ ...newGarment, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-brand-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                    Category *
+                  </label>
+                  <select
+                    value={newGarment.category}
+                    onChange={(e) => setNewGarment({ ...newGarment, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold focus:outline-hidden"
+                  >
+                    <option value="mens">Men&apos;s</option>
+                    <option value="womens">Women&apos;s</option>
+                    <option value="home">Home &amp; Furnishing</option>
+                    <option value="laundry">Laundry</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                    Billing Unit *
+                  </label>
+                  <select
+                    value={newGarment.unit}
+                    onChange={(e) => setNewGarment({ ...newGarment, unit: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold focus:outline-hidden"
+                  >
+                    <option value="piece">Piece</option>
+                    <option value="pair">Pair</option>
+                    <option value="per panel">Per Panel</option>
+                    <option value="per sq ft">Per Sq. Ft.</option>
+                    <option value="kg">Per Kg</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                    Dry Clean Rate (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newGarment.dryCleanRate}
+                    onChange={(e) =>
+                      setNewGarment({ ...newGarment, dryCleanRate: Number(e.target.value) || 0 })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-brand-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                    Steam Press Rate (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newGarment.steamIronRate}
+                    onChange={(e) =>
+                      setNewGarment({ ...newGarment, steamIronRate: Number(e.target.value) || 0 })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-brand-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowNewGarmentModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-md shadow-brand-900/20"
+                >
+                  Add to Catalog
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

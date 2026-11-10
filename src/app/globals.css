@@ -31,6 +31,17 @@ body {
   background: #94a3b8;
 }
 
+/* Remove stepper arrows from number inputs across all browsers */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Clean Print Styles for Invoices (A4 & POS Thermal Slip) */
 @media print {
   body {
@@ -56,4 +67,3 @@ body {
     font-size: 11px !important;
   }
 }
-

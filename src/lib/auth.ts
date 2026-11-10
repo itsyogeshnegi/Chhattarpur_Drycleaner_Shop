@@ -6,7 +6,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'al_haram_super_secure_jwt_secret_c
 export interface AuthSession {
   userId: string;
   name: string;
-  role: 'admin' | 'counter_staff' | 'delivery';
+  role: 'admin' | 'counter_staff' | 'delivery' | 'customer';
+  phone?: string;
+  email?: string;
 }
 
 export function signToken(payload: AuthSession): string {
@@ -27,4 +29,3 @@ export async function getCurrentUser(): Promise<AuthSession | null> {
   if (!token) return null;
   return verifyToken(token);
 }
-

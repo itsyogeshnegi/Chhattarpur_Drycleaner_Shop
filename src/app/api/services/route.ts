@@ -9,8 +9,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get('category');
     const search = searchParams.get('search');
+    const includeAll = searchParams.get('all') === 'true';
 
-    const query: Record<string, unknown> = { isActive: true };
+    const query: Record<string, unknown> = includeAll ? {} : { isActive: true };
 
     if (category && category !== 'all') {
       query.category = category;
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     // Fast lean projection
     const items = await ServiceItem.find(query)
-      .select('name category dryCleanRate steamIronRate rateRangeText unit popular')
+      .select('name category dryCleanRate steamIronRate rateRangeText unit popular isActive')
       .sort({ category: 1, popular: -1, name: 1 })
       .lean();
 
@@ -50,4 +51,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
 }
-

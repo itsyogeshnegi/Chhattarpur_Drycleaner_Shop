@@ -12,11 +12,13 @@ node_modules/
 
 # Environment and sensitive keys
 .env
-# .env*.local
-# .env.local
+.env*.local
+.env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
+!.env.example
 
 # Debug logs
 npm-debug.log*
