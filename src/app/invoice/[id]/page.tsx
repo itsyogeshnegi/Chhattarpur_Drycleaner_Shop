@@ -51,6 +51,8 @@ interface OrderInvoiceData {
   status: string;
   rackLocation?: string;
   internalNotes?: string;
+  deliveryOtp?: string;
+  deliveryVerifiedBy?: string;
   createdAt: string;
 }
 
@@ -225,6 +227,37 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             <div>
               <p className="font-bold">Payment Settled Successfully!</p>
               <p className="text-xs text-emerald-700">Your transaction has been confirmed and invoice marked as PAID.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Out for Delivery Verification OTP Banner */}
+        {invoice.status === 'out_for_delivery' && invoice.deliveryOtp && (
+          <div className="no-print bg-gradient-to-r from-indigo-950 via-brand-900 to-slate-900 text-white p-4 sm:p-5 rounded-3xl border border-indigo-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-xl shrink-0">
+                🛵
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
+                  Out for Doorstep Delivery
+                </p>
+                <h4 className="text-sm sm:text-base font-extrabold text-white">
+                  Delivery Verification OTP
+                </h4>
+                <p className="text-[11px] text-slate-300">
+                  Share this OTP with our delivery boy to confirm receipt of your garments.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white/15 border border-white/25 px-4 py-2 rounded-2xl flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">
+                OTP:
+              </span>
+              <span className="font-mono font-black text-xl tracking-widest text-white">
+                {invoice.deliveryOtp}
+              </span>
             </div>
           </div>
         )}

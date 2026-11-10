@@ -10,16 +10,18 @@ import {
   ArrowRight,
   ShieldCheck,
   Truck,
-  Leaf,
-  Calendar,
-  Package,
+  CreditCard,
   Zap,
-  Tag,
-  CheckCircle2,
-  Phone,
-  MessageSquare,
+  Award,
+  Headphones,
+  Calendar,
+  Layers,
   Sparkles,
-  Clock,
+  Home,
+  Shirt,
+  Upload,
+  FileText,
+  Package,
 } from 'lucide-react';
 
 async function getServices() {
@@ -47,37 +49,34 @@ export default async function HomePage() {
       <Navbar />
 
       <main className="grow">
-        {/* 1. HERO SECTION (Clean, minimal, smaller text matching reference design) */}
-        <section className="relative pt-8 pb-14 sm:pt-12 sm:pb-18 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-sky-50/50 via-white to-white overflow-hidden">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* Hero Left Content (6 cols) */}
-            <div className="lg:col-span-6 space-y-4 sm:space-y-5">
-              {/* Pickup • Clean • Deliver Pill */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-brand-200 text-brand-700 text-[11px] font-bold">
-                <span className="flex h-1.5 w-1.5 relative shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                </span>
-                <span>Pickup &bull; Clean &bull; Deliver</span>
+        {/* =========================================================
+            SECTION 1: HERO SECTION matching reference layout & colors
+           ========================================================= */}
+        <section className="relative pt-12 pb-20 sm:pt-16 sm:pb-28 px-4 sm:px-6 lg:px-8 bg-white overflow-hidden border-b border-slate-100">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+            {/* Left Content Column (7 cols) */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Pill Tag: Laundry & Dry Cleaning */}
+              <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-[#eef5ff] text-brand-600 text-xs sm:text-sm font-semibold">
+                <span>Laundry &amp; Dry Cleaning</span>
               </div>
 
-              {/* Main Headline - Reduced size for elegant balance */}
-              <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold tracking-tight text-slate-900 leading-[1.18]">
-                Expert Dry Cleaning &amp; <br />
-                Laundry at{' '}
-                <span className="text-brand-600">Your Doorstep</span>
+              {/* Main Headline */}
+              <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-extrabold tracking-tight text-slate-900 leading-[1.12]">
+                Expert Dry Cleaning <br />
+                <span className="text-brand-600">&amp; Steam Pressing</span>
               </h1>
 
-              {/* Subtitle - Short, punchy, smaller text */}
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md leading-relaxed">
-                Premium cleaning for your everyday and special garments. Schedule a pickup, we&apos;ll take care of the rest.
+              {/* Subtitle */}
+              <p className="text-sm sm:text-base text-slate-500 max-w-lg leading-relaxed pt-1">
+                Professional care for your everyday wear, delicates and special garments. Pick up, clean and deliver at your doorstep.
               </p>
 
-              {/* Action Buttons: Book a Pickup & View Pricing */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+              {/* Buttons: Solid Blue "Book a Pickup ->" + Outline "View Pricing" */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                 <a
                   href="#book-pickup"
-                  className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-bold text-xs sm:text-sm px-6 py-3 rounded-xl transition shadow-md shadow-brand-500/20 flex items-center justify-center gap-2"
+                  className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-semibold text-sm px-7 py-3.5 rounded-xl transition shadow-xs flex items-center justify-center gap-2"
                 >
                   <span>Book a Pickup</span>
                   <ArrowRight className="w-4 h-4" />
@@ -85,384 +84,382 @@ export default async function HomePage() {
 
                 <a
                   href="#pricing"
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs sm:text-sm px-6 py-3 rounded-xl transition shadow-2xs text-center flex items-center justify-center"
+                  className="bg-white hover:bg-slate-50 active:scale-98 border border-slate-300 text-slate-800 font-semibold text-sm px-6 py-3.5 rounded-xl transition shadow-2xs text-center flex items-center justify-center"
                 >
                   <span>View Pricing</span>
                 </a>
               </div>
 
-              {/* 3 Trust Badges */}
-              <div className="pt-2 flex flex-wrap items-center gap-4 sm:gap-6 text-[11px] font-medium text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <Truck className="w-3.5 h-3.5 text-brand-600" />
-                  <span>Free Pickup &amp; Delivery*</span>
+              {/* 3 Inline Trust Features below matching reference image */}
+              <div className="pt-4 flex flex-wrap items-center gap-6 sm:gap-8 text-xs sm:text-sm font-medium text-slate-600">
+                <span className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-brand-600" />
+                  <span>Free Pickup &amp; Delivery</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
-                  <span>Fabric Safe Cleaning</span>
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-brand-600" />
+                  <span>Safe &amp; Hygienic Cleaning</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <Leaf className="w-3.5 h-3.5 text-brand-600" />
-                  <span>Eco-Friendly Process</span>
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-brand-600" />
+                  <span>Fabric Friendly</span>
                 </span>
               </div>
             </div>
 
-            {/* Hero Right Visual (6 cols) */}
-            <div className="lg:col-span-6 relative">
-              <div className="relative rounded-3xl overflow-hidden border border-slate-100 shadow-lg bg-slate-100 max-h-[400px] sm:max-h-[460px]">
+            {/* Right Visual Column: Stack of Folded Shirts Visual matching reference image (5 cols) */}
+            <div className="lg:col-span-5 relative flex items-center justify-center">
+              <div className="relative w-full max-w-[440px] flex items-center justify-center select-none">
                 <Image
-                  src="https://images.unsplash.com/photo-1545173168-9f1947eebb7f?auto=format&fit=crop&w=1200&q=80"
-                  alt="Crisp freshly dry-cleaned shirts on wooden hangers on a modern clothes rack"
-                  width={1200}
-                  height={800}
+                  src="/images/hero-shirts.webp"
+                  alt="Expert Dry Cleaning & Steam Pressing - Folded shirts"
+                  width={855}
+                  height={790}
                   priority
-                  className="w-full h-[320px] sm:h-[420px] object-cover hover:scale-102 transition duration-500"
+                  className="w-full max-w-[460px] sm:max-w-[490px] h-auto object-contain select-none transition-transform duration-500 hover:scale-[1.02]"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/20 via-transparent to-transparent pointer-events-none" />
               </div>
             </div>
           </div>
-        </section>
 
-        {/* 2. OUR SERVICES SECTION */}
-        <section id="services" className="py-12 sm:py-16 bg-white border-t border-slate-100 scroll-mt-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
-            {/* Header: Title + View All Services link */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                  Our Services
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Professional fabric care tailored for delicate and everyday wear.
-                </p>
-              </div>
-
-              <a
-                href="#pricing"
-                className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 transition shrink-0"
-              >
-                <span>View All Services</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
-            </div>
-
-            {/* 4 Clean Service Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-              {/* Service 1: Dry Cleaning */}
-              <div className="group bg-white rounded-2xl border border-slate-200/90 p-5 hover:shadow-md hover:border-brand-300 transition relative flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-brand-100 flex items-center justify-center text-brand-600">
-                    <svg
-                      className="w-5 h-5 stroke-brand-600 fill-none stroke-[2]"
-                      viewBox="0 0 24 24"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 3a2.5 2.5 0 0 0-2.5 2.5c0 .7.3 1.3.8 1.8L2.7 13.5A2 2 0 0 0 4.2 17h15.6a2 2 0 0 0 1.5-3.5L13.7 7.3c.5-.5.8-1.1.8-1.8A2.5 2.5 0 0 0 12 3z" />
-                      <path d="M4 17h16" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Dry Cleaning
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Professional cleaning for delicate and premium wear.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[11px] font-semibold text-slate-500">
-                  <span>From ₹70</span>
-                  <div className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-brand-600 group-hover:text-white flex items-center justify-center transition">
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service 2: Laundry */}
-              <div className="group bg-white rounded-2xl border border-slate-200/90 p-5 hover:shadow-md hover:border-brand-300 transition relative flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-brand-100 flex items-center justify-center text-brand-600">
-                    <svg
-                      className="w-5 h-5 stroke-brand-600 fill-none stroke-[2]"
-                      viewBox="0 0 24 24"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="12" cy="13" r="5" />
-                      <path d="M7 6h.01" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Laundry
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Everyday clothes, washed, cleaned and fresh.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[11px] font-semibold text-slate-500">
-                  <span>Wash &amp; Steam Press</span>
-                  <div className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-brand-600 group-hover:text-white flex items-center justify-center transition">
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service 3: Steam Press */}
-              <div className="group bg-white rounded-2xl border border-slate-200/90 p-5 hover:shadow-md hover:border-brand-300 transition relative flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-brand-100 flex items-center justify-center text-brand-600">
-                    <svg
-                      className="w-5 h-5 stroke-brand-600 fill-none stroke-[2]"
-                      viewBox="0 0 24 24"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 16h16a1 1 0 0 0 1-1v-2a7 7 0 0 0-7-7H8a4 4 0 0 0-4 4v5a1 1 0 0 0 1 1z" />
-                      <path d="M6 19h12" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Steam Press
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Crisp, wrinkle-free finish for a perfect look.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[11px] font-semibold text-slate-500">
-                  <span>From ₹25</span>
-                  <div className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-brand-600 group-hover:text-white flex items-center justify-center transition">
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service 4: Home Care */}
-              <div className="group bg-white rounded-2xl border border-slate-200/90 p-5 hover:shadow-md hover:border-brand-300 transition relative flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-brand-100 flex items-center justify-center text-brand-600">
-                    <svg
-                      className="w-5 h-5 stroke-brand-600 fill-none stroke-[2]"
-                      viewBox="0 0 24 24"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2" />
-                      <rect x="2" y="11" width="20" height="8" rx="2" />
-                      <path d="M4 19v2" />
-                      <path d="M20 19v2" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Home Care
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Curtains, bedsheets, blankets and more.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[11px] font-semibold text-slate-500">
-                  <span>Quilts from ₹250</span>
-                  <div className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-brand-600 group-hover:text-white flex items-center justify-center transition">
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Centered "Our Services" transition pill matching reference image */}
+          <div className="flex justify-center -mb-24 pt-16 relative z-10">
+            <a
+              href="#services"
+              className="px-5 py-1.5 rounded-full bg-[#eef5ff] hover:bg-blue-100/70 text-brand-600 text-xs font-semibold border border-blue-200/50 shadow-2xs transition"
+            >
+              Our Services
+            </a>
           </div>
         </section>
 
-        {/* 3. HOW IT WORKS SECTION */}
-        <section id="how-it-works" className="py-12 sm:py-16 bg-slate-50/60 border-t border-slate-100 scroll-mt-20">
+        {/* =========================================================
+            SECTION 2: "Explore Our Printing Services" -> "Explore Our Dry Cleaning Services"
+           ========================================================= */}
+        <section id="services" className="py-16 sm:py-20 bg-white border-b border-slate-100 scroll-mt-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-            {/* Header */}
-            <div className="text-center space-y-1 max-w-xl mx-auto">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                How It Works
+            {/* Header: Tag with dash + Title */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-600 flex items-center gap-1.5">
+                <span className="w-5 h-0.5 bg-brand-600 inline-block"></span>
+                Our Services
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5">
+                Explore Our Dry Cleaning Services
               </h2>
-              <p className="text-xs text-slate-500">
-                A simple, hassle-free process in 3 steps
+            </div>
+
+            {/* 4 Cards in a horizontal row matching reference image */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Card 1: Business Printing / Suits */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 hover:shadow-md hover:border-brand-300 transition duration-200 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="w-11 h-11 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-600">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Business Dry Cleaning
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Business suits, coats, blazers, letterheads, shirts, trousers &amp; ties.
+                  </p>
+                </div>
+                <a
+                  href="#pricing"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 group"
+                >
+                  <span>Explore</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </div>
+
+              {/* Card 2: Event Printing / Couture */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 hover:shadow-md hover:border-brand-300 transition duration-200 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="w-11 h-11 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-rose-500">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Event &amp; Wedding Wear
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Bridal lehengas, zari sarees, silk kurtas, sherwanis &amp; pashmina shawls.
+                  </p>
+                </div>
+                <a
+                  href="#pricing"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 group"
+                >
+                  <span>Explore</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </div>
+
+              {/* Card 3: Marketing Materials / Home Essentials */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 hover:shadow-md hover:border-brand-300 transition duration-200 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="w-11 h-11 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Home &amp; Bedding
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Single &amp; double quilts, heavy blankets, sofa seats, curtains &amp; carpets.
+                  </p>
+                </div>
+                <a
+                  href="#pricing"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 group"
+                >
+                  <span>Explore</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </div>
+
+              {/* Card 4: Custom Printing / Launderette */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 hover:shadow-md hover:border-brand-300 transition duration-200 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="w-11 h-11 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                    <Shirt className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Daily Launderette
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Everyday wash &amp; steam press per piece or bulk washing &amp; pressing per Kg.
+                  </p>
+                </div>
+                <a
+                  href="#pricing"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 group"
+                >
+                  <span>Explore</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================
+            SECTION 3: "Why Choose PrintEase?" -> "Why Choose Al-Haram?"
+           ========================================================= */}
+        <section id="about" className="py-16 sm:py-20 bg-slate-50/50 border-b border-slate-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+            {/* Centered Heading & Subtitle matching reference image */}
+            <div className="text-center space-y-1.5 max-w-xl mx-auto">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Why Choose Al-Haram?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500">
+                A simple, reliable and professional garment care experience.
               </p>
             </div>
 
-            {/* 3 Steps */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center max-w-4xl mx-auto">
-              {/* Step 1 */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5">
-                <div className="w-12 h-12 rounded-full bg-sky-50 border border-brand-200/70 text-brand-600 flex items-center justify-center mx-auto shadow-2xs">
-                  <Calendar className="w-5 h-5" />
+            {/* 3 Columns with Circular Blue Outline Icons */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-10 max-w-5xl mx-auto">
+              {/* Feature 1: Quick Turnaround */}
+              <div className="flex flex-col items-center text-center space-y-2.5">
+                <div className="w-12 h-12 rounded-full border border-brand-200 bg-white text-brand-600 flex items-center justify-center shadow-2xs">
+                  <Zap className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-sm">
-                  1. Book a Pickup
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Quick Turnaround
                 </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Schedule at your convenience.
+                <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+                  Get your clothes cleaned and delivered on time, every time.
                 </p>
               </div>
 
-              {/* Step 2 */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5">
-                <div className="w-12 h-12 rounded-full bg-sky-50 border border-brand-200/70 text-brand-600 flex items-center justify-center mx-auto shadow-2xs">
+              {/* Feature 2: Top Quality */}
+              <div className="flex flex-col items-center text-center space-y-2.5">
+                <div className="w-12 h-12 rounded-full border border-brand-200 bg-white text-brand-600 flex items-center justify-center shadow-2xs">
+                  <Award className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Top Quality
+                </h3>
+                <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+                  Eco-friendly solvents, gentle on fabrics, vibrant and lasting freshness.
+                </p>
+              </div>
+
+              {/* Feature 3: Dedicated Support */}
+              <div className="flex flex-col items-center text-center space-y-2.5">
+                <div className="w-12 h-12 rounded-full border border-brand-200 bg-white text-brand-600 flex items-center justify-center shadow-2xs">
+                  <Headphones className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Dedicated Support
+                </h3>
+                <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+                  Real people, quick and helpful WhatsApp and phone responses.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================
+            SECTION 4: "Popular Printing Prices" & Rate Calculator
+           ========================================================= */}
+        <RateCalculator initialServices={services} />
+
+        {/* =========================================================
+            SECTION 5: "Print in 4 Simple Steps" -> "Cleaned in 4 Simple Steps"
+           ========================================================= */}
+        <section id="how-it-works" className="py-16 sm:py-20 bg-slate-50/50 border-b border-slate-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+            {/* Header: Tag with dash + Title */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-600 flex items-center gap-1.5">
+                <span className="w-5 h-0.5 bg-brand-600 inline-block"></span>
+                How It Works
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5">
+                Cleaned in 4 Simple Steps
+              </h2>
+            </div>
+
+            {/* 4 Cards in a horizontal row matching reference image */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Step 1: Upload / Schedule */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-600">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Schedule Pickup
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Book online or message us to choose a convenient time slot.
+                </p>
+              </div>
+
+              {/* Step 2: Get a Quote / Tag & Inspect */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-600">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Get a Quote
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Receive a quick, transparent price and detailed garment inspection.
+                </p>
+              </div>
+
+              {/* Step 3: We Print / We Clean */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-600">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  We Clean
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  High-quality eco-cleaning and precision Italian steam pressing.
+                </p>
+              </div>
+
+              {/* Step 4: Fast Delivery */}
+              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-600">
                   <Truck className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-sm">
-                  2. We Clean
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Fast Delivery
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Professional and fabric-safe cleaning.
-                </p>
-              </div>
-
-              {/* Step 3 */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5">
-                <div className="w-12 h-12 rounded-full bg-sky-50 border border-brand-200/70 text-brand-600 flex items-center justify-center mx-auto shadow-2xs">
-                  <Package className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-sm">
-                  3. Get It Delivered
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Fresh, clean clothes at your doorstep.
+                  Get it delivered fresh and ready-to-wear right to your doorstep.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* 4. POPULAR PRICING & BOOK A PICKUP */}
+        {/* =========================================================
+            SECTION 6: "Request a Printing Quote" Form with Product Visual on the Left
+           ========================================================= */}
         <PickupBookingSection />
 
-        {/* DETAILED LIVE TARIFF & CALCULATOR (Expandable under #pricing) */}
-        <div id="pricing">
-          <RateCalculator initialServices={services} />
-        </div>
-
-        {/* 5. WHY CHOOSE AL-HARAM? */}
-        <section id="about" className="py-12 sm:py-16 bg-white border-t border-slate-100 scroll-mt-20">
+        {/* =========================================================
+            SECTION 7: "Trusted by Our Customers" (Testimonials)
+           ========================================================= */}
+        <section className="py-16 sm:py-20 bg-white border-t border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-            <div className="text-center space-y-1 max-w-xl mx-auto">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                Why Choose Al-Haram?
+            {/* Header: Tag with dash + Title */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-600 flex items-center gap-1.5">
+                <span className="w-5 h-0.5 bg-brand-600 inline-block"></span>
+                Testimonials
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5">
+                Trusted by Our Customers
               </h2>
             </div>
 
-            {/* 4 Trust Feature Items in a Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-              <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
-                <div className="w-9 h-9 rounded-xl bg-sky-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-100">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Trusted &amp; Safe</h4>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Care for all fabric types
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
-                <div className="w-9 h-9 rounded-xl bg-sky-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-100">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Quick Turnaround</h4>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    On-time pickup &amp; delivery
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
-                <div className="w-9 h-9 rounded-xl bg-sky-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-100">
-                  <Leaf className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Eco-Friendly</h4>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Safe and sustainable cleaning
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
-                <div className="w-9 h-9 rounded-xl bg-sky-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-100">
-                  <Tag className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Affordable Pricing</h4>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Premium service at fair rates
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 6. WHAT OUR CUSTOMERS SAY */}
-        <section className="py-12 sm:py-16 bg-slate-50/60 border-t border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-            <div className="text-center space-y-1 max-w-xl mx-auto">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                What Our Customers Say
-              </h2>
-            </div>
-
-            {/* 3 Testimonials in a Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* 3 Review Cards in a horizontal row matching reference image */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Testimonial 1 */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-3 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  &ldquo;Great service and very convenient pickup. My clothes came back like new!&rdquo;
+              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  &ldquo;Excellent dry cleaning quality and on-time delivery. Highly recommended!&rdquo;
                 </p>
-                <div className="flex items-center gap-2.5 pt-2 border-t border-slate-100">
-                  <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    RS
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="flex text-amber-400 text-xs gap-0.5">
+                    {'★'.repeat(5)}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Rohit Sharma</h4>
-                    <div className="flex text-amber-400 text-[10px] mt-0.5">
-                      {'★'.repeat(5)}
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      RS
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Rohit Sharma</h4>
+                      <p className="text-[11px] text-slate-400">Event Organizer</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Testimonial 2 */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-3 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  &ldquo;Reliable, affordable and professional. Highly recommend Al-Haram.&rdquo;
+              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  &ldquo;The best dry cleaning service in the city. Great support and fair pricing.&rdquo;
                 </p>
-                <div className="flex items-center gap-2.5 pt-2 border-t border-slate-100">
-                  <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    PM
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="flex text-amber-400 text-xs gap-0.5">
+                    {'★'.repeat(5)}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Priya Mehta</h4>
-                    <div className="flex text-amber-400 text-[10px] mt-0.5">
-                      {'★'.repeat(5)}
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      PM
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Priya Mehta</h4>
+                      <p className="text-[11px] text-slate-400">Small Business Owner</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Testimonial 3 */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-3 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  &ldquo;The best laundry service in the city. On-time and excellent quality.&rdquo;
+              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  &ldquo;Very professional and reliable. I always send my business suits and blankets here.&rdquo;
                 </p>
-                <div className="flex items-center gap-2.5 pt-2 border-t border-slate-100">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    AN
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="flex text-amber-400 text-xs gap-0.5">
+                    {'★'.repeat(5)}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Aman Negi</h4>
-                    <div className="flex text-amber-400 text-[10px] mt-0.5">
-                      {'★'.repeat(5)}
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      AV
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Aman Verma</h4>
+                      <p className="text-[11px] text-slate-400">Marketing Consultant</p>
                     </div>
                   </div>
                 </div>
@@ -470,42 +467,11 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-
-        {/* 7. GET DIRECT WHATSAPP & BOOKING BANNER */}
-        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 bg-white border-t border-slate-100">
-          <div className="max-w-7xl mx-auto bg-gradient-to-r from-sky-100 via-blue-50 to-sky-100 rounded-3xl p-5 sm:p-8 border border-sky-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="space-y-1 text-center sm:text-left">
-              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                Need Fast Doorstep Pickup?
-              </h3>
-              <p className="text-xs text-slate-600 max-w-lg">
-                Book pickups, track orders, and message our counter directly on WhatsApp anytime.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0">
-              <a
-                href="https://wa.me/918700548416?text=Hello%20Al%20Haram%20Drycleaners,%20I%20would%20like%20to%20schedule%20a%20pickup."
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-xs flex items-center gap-1.5"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>WhatsApp Us</span>
-              </a>
-
-              <Link
-                href="/track"
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-xs flex items-center gap-1.5"
-              >
-                <span>Track Order</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-        </section>
       </main>
 
+      {/* =========================================================
+          SECTION 8: Dark Navy Footer matching reference image
+         ========================================================= */}
       <Footer />
     </div>
   );

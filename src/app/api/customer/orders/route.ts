@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     }
 
     const orders = await OrderInvoice.find({ $or: matchConditions })
-      .select('invoiceNumber customer status items grandTotal paidAmount balanceAmount paymentStatus rackLocation createdAt pickupDate')
+      .select('invoiceNumber customer status items grandTotal paidAmount balanceAmount paymentStatus rackLocation createdAt pickupDate deliveryOtp deliveryVerifiedBy deliveredAt')
       .sort({ createdAt: -1 })
       .lean();
 

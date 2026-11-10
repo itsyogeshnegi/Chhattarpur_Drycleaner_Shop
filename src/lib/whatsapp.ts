@@ -85,6 +85,7 @@ export function generateWhatsAppReadyAlertUrl(payload: {
   itemsCount: number;
   itemsSummary?: string;
   invoiceUrl?: string;
+  deliveryOtp?: string;
 }): string {
   let cleanPhone = payload.customerPhone.replace(/[^0-9]/g, '');
   if (cleanPhone.length === 10) {
@@ -105,8 +106,11 @@ export function generateWhatsAppReadyAlertUrl(payload: {
     alertTitle = '✨ *ORDER DELIVERED - AL-HARAM DRYCLEANERS* ✨';
     statusMessage = `Your dry cleaning order *#${payload.invoiceNumber}* has been successfully delivered. Thank you for choosing Al-Haram!`;
   } else if (isOut) {
-    alertTitle = '🛵 *OUT FOR DELIVERY - AL-HARAM DRYCLEANERS* ✨';
-    statusMessage = `Your garments for Invoice *#${payload.invoiceNumber}* are *OUT FOR DELIVERY* and will reach your doorstep shortly.`;
+    alertTitle = '🛵 *OUT FOR DELIVERY - AL-HARAM DRYCLEANERS* 🛵';
+    statusMessage = `Your garments for Invoice *#${payload.invoiceNumber}* are *OUT FOR DELIVERY* and rider is on the way to your doorstep!`;
+    if (payload.deliveryOtp) {
+      statusMessage += `\n\n🔑 *YOUR DELIVERY CONFIRMATION OTP:* *${payload.deliveryOtp}*\n_(Please share this 4-digit OTP with our delivery partner only after receiving your garments.)_`;
+    }
   }
 
   const balanceText =

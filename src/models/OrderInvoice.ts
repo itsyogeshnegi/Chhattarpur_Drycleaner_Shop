@@ -41,6 +41,10 @@ export interface IOrderInvoice extends Document {
   pickupDate?: Date;
   deliveryDueDate?: Date;
   deliveredAt?: Date;
+  deliveryOtp?: string;
+  deliveryOtpGeneratedAt?: Date;
+  deliveryVerifiedAt?: Date;
+  deliveryVerifiedBy?: string;
   smsNotificationSent: boolean;
   smsSentAt?: Date;
   createdBy: string;
@@ -115,6 +119,10 @@ const OrderInvoiceSchema = new Schema<IOrderInvoice>(
     pickupDate: { type: Date, default: Date.now },
     deliveryDueDate: { type: Date },
     deliveredAt: { type: Date },
+    deliveryOtp: { type: String, trim: true },
+    deliveryOtpGeneratedAt: { type: Date },
+    deliveryVerifiedAt: { type: Date },
+    deliveryVerifiedBy: { type: String, trim: true },
     smsNotificationSent: { type: Boolean, default: false },
     smsSentAt: { type: Date },
     createdBy: { type: String, default: 'admin' },

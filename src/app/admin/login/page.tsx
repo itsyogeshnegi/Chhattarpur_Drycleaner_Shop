@@ -70,8 +70,7 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        router.push('/admin/counter');
-        router.refresh();
+        window.location.href = '/admin/counter';
       } else {
         setError(data.message || 'Invalid User ID or password. Please try again.');
         refreshCaptcha();

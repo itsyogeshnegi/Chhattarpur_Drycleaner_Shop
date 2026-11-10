@@ -7,7 +7,7 @@ import {
   Sparkles,
   ShoppingBag,
   ListOrdered,
-  FileSpreadsheet,
+  Users,
   Settings,
   LogOut,
   Menu,
@@ -25,8 +25,6 @@ function AdminNavItems({
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const currentView = searchParams.get('view');
 
   const navLinks = [
     {
@@ -34,7 +32,7 @@ function AdminNavItems({
       shortName: 'POS',
       href: '/admin/counter',
       icon: ShoppingBag,
-      desc: 'New orders & transactions',
+      desc: 'New orders & billing',
       isActive: pathname.startsWith('/admin/counter'),
     },
     {
@@ -42,20 +40,16 @@ function AdminNavItems({
       shortName: 'Orders',
       href: '/admin/orders',
       icon: ListOrdered,
-      desc: 'Track stages & send SMS',
-      // Active ONLY when on /admin/orders AND NOT in invoices view
-      isActive: pathname === '/admin/orders' && currentView !== 'invoices',
+      desc: 'Track clothes & SMS alerts',
+      isActive: pathname.startsWith('/admin/orders') || pathname.startsWith('/admin/invoices'),
     },
     {
-      name: 'Dual Invoices',
-      shortName: 'Invoices',
-      href: '/admin/orders?view=invoices',
-      icon: FileSpreadsheet,
-      desc: 'Customer & Internal bills',
-      // Active ONLY when view === 'invoices' or on an invoice page
-      isActive:
-        (pathname.startsWith('/admin/orders') && currentView === 'invoices') ||
-        pathname.startsWith('/admin/invoices'),
+      name: 'Customers List',
+      shortName: 'Customers',
+      href: '/admin/customers',
+      icon: Users,
+      desc: 'Profiles & 3 quick actions',
+      isActive: pathname.startsWith('/admin/customers'),
     },
     {
       name: 'Customisation Hub',
@@ -126,10 +120,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/admin/login');
-      router.refresh();
-    } catch {
-      router.push('/admin/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      // Hard navigation to /admin/login cleanly clears all in-memory client state and cookies
+      window.location.href = '/admin/login';
     }
   };
 

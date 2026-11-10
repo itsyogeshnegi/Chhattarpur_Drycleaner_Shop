@@ -10,7 +10,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const { status, triggerSms = true } = await req.json();
+    const body = await req.json();
+    const { status, otp, isOverride = false, triggerSms = true } = body;
 
     const validStatuses = ['received', 'in_process', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -23,16 +24,79 @@ export async function PATCH(
       ? { $or: [{ _id: id }, { invoiceNumber: id }] }
       : { invoiceNumber: id };
 
-    const updateFields: Record<string, unknown> = { status };
-    if (status === 'delivered') {
-      updateFields.deliveredAt = new Date();
-    }
-
-    const order = await OrderInvoice.findOneAndUpdate(query, updateFields, { new: true });
+    const order = await OrderInvoice.findOne(query);
 
     if (!order) {
       return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
     }
+
+    // Handle OUT FOR DELIVERY: Automatically generate 4-digit Delivery OTP if not set
+    if (status === 'out_for_delivery') {
+      if (!order.deliveryOtp) {
+        // Generate clean, easy-to-read 4-digit code (e.g. 1000 - 9999)
+        const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        order.deliveryOtp = generatedOtp;
+        order.deliveryOtpGeneratedAt = new Date();
+      }
+      order.status = 'out_for_delivery';
+    } else if (status === 'delivered') {
+      // If order is Out for Delivery (or has a delivery OTP assigned), STRICTLY require OTP verification!
+      if (order.status === 'out_for_delivery' || order.deliveryOtp) {
+        // If order was out for delivery but missing deliveryOtp (legacy record), generate one immediately
+        if (!order.deliveryOtp) {
+          order.deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+          order.deliveryOtpGeneratedAt = new Date();
+          await order.save();
+        }
+
+        if (isOverride) {
+          order.status = 'delivered';
+          order.deliveredAt = new Date();
+          order.deliveryVerifiedAt = new Date();
+          order.deliveryVerifiedBy = 'admin_override';
+        } else {
+          const cleanOtp = String(otp || '').trim();
+          if (!cleanOtp) {
+            return NextResponse.json(
+              {
+                success: false,
+                requiresOtp: true,
+                expectedOtp: order.deliveryOtp,
+                message: 'Delivery OTP is required to confirm this handover.',
+              },
+              { status: 400 }
+            );
+          }
+
+          // Strict match: the entered OTP must exactly match the customer's delivery OTP
+          if (cleanOtp !== String(order.deliveryOtp).trim()) {
+            return NextResponse.json(
+              {
+                success: false,
+                requiresOtp: true,
+                message: 'Invalid Delivery OTP! Only the 4-digit OTP provided to the customer is accepted.',
+              },
+              { status: 400 }
+            );
+          }
+
+          order.status = 'delivered';
+          order.deliveredAt = new Date();
+          order.deliveryVerifiedAt = new Date();
+          order.deliveryVerifiedBy = 'customer_otp';
+        }
+      } else {
+        // Direct counter handover (e.g. from Ready)
+        order.status = 'delivered';
+        order.deliveredAt = new Date();
+        order.deliveryVerifiedAt = new Date();
+        order.deliveryVerifiedBy = 'store_counter_handover';
+      }
+    } else {
+      order.status = status;
+    }
+
+    await order.save();
 
     // Auto trigger SMS if marked "ready" (Requirement 5)
     let smsResult = null;
@@ -53,7 +117,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: `Status updated to ${status}`,
+      message: `Status updated to ${status}${status === 'delivered' ? ' (Delivery Confirmed)' : ''}`,
       order,
       smsResult,
     });

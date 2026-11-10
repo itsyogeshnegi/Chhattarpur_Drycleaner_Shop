@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import {
@@ -29,6 +30,9 @@ interface OrderHistoryItem {
   paymentStatus: string;
   items: Array<{ name: string; serviceType: string; quantity: number; total?: number }>;
   pickupDate?: string;
+  deliveryOtp?: string;
+  deliveryVerifiedBy?: string;
+  deliveredAt?: string;
 }
 
 export default function CustomerHistoryModal({
@@ -44,6 +48,11 @@ export default function CustomerHistoryModal({
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [searchPhone, setSearchPhone] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchOrders = useCallback(async (phoneToSearch?: string) => {
     const targetPhone = phoneToSearch || (customer ? customer.phone || customer.userId : '');
@@ -74,7 +83,7 @@ export default function CustomerHistoryModal({
     }
   }, [isOpen, customer, fetchOrders, searchPhone]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handlePhoneSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,9 +126,15 @@ export default function CustomerHistoryModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 transition-opacity animate-in fade-in duration-200 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-brand-600 to-sky-700 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -337,6 +352,22 @@ export default function CustomerHistoryModal({
                           </div>
                         </div>
 
+                        {/* Customer Out-for-Delivery OTP */}
+                        {order.status === 'out_for_delivery' && order.deliveryOtp && (
+                          <div className="bg-indigo-50 border border-indigo-200/90 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">🛵</span>
+                              <div>
+                                <p className="font-extrabold text-indigo-950 text-[11px]">Delivery Verification OTP</p>
+                                <p className="text-[10px] text-indigo-600">Share with rider on handover</p>
+                              </div>
+                            </div>
+                            <span className="font-mono font-black text-sm bg-white text-indigo-900 border border-indigo-300 px-2.5 py-0.5 rounded-lg shadow-2xs tracking-widest">
+                              {order.deliveryOtp}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                           <span className="text-[11px] font-semibold text-slate-500">
@@ -430,6 +461,7 @@ export default function CustomerHistoryModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

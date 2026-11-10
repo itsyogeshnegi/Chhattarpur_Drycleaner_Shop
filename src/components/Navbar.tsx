@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
-import { Menu, X, Phone, LogOut, User } from 'lucide-react';
+import { Menu, X, Phone, LogOut, User, Layers, ArrowRight } from 'lucide-react';
 import CustomerHistoryModal from '@/components/CustomerHistoryModal';
 
 export default function Navbar() {
@@ -12,37 +12,29 @@ export default function Navbar() {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-2xs">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Logo with clean clothes hanger icon */}
+          {/* Logo matching the PrintEase style: Blue layered icon + Brand Name */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-brand-200/60 flex items-center justify-center text-brand-600 group-hover:scale-105 transition-transform shrink-0">
-              <svg
-                className="w-6 h-6 stroke-brand-600 fill-none stroke-[2.2]"
-                viewBox="0 0 24 24"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 3a2.5 2.5 0 0 0-2.5 2.5c0 .7.3 1.3.8 1.8L2.7 13.5A2 2 0 0 0 4.2 17h15.6a2 2 0 0 0 1.5-3.5L13.7 7.3c.5-.5.8-1.1.8-1.8A2.5 2.5 0 0 0 12 3z" />
-                <path d="M4 17h16" />
-              </svg>
+            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform shrink-0">
+              <Layers className="w-5 h-5" />
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-slate-900 group-hover:text-brand-600 transition">
                 Al-Haram
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 -mt-0.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 -mt-1">
                 Dry Cleaning &amp; Laundry
               </span>
             </div>
           </Link>
 
-          {/* Desktop Nav Links (Home, Services, Pricing, How It Works, About) */}
-          <nav className="hidden md:flex items-center gap-7 text-xs sm:text-sm font-semibold text-slate-700">
+          {/* Center Navigation Links matching reference: Home, Services, Pricing, How It Works, Contact */}
+          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-700">
             <Link
               href="/"
-              className="text-brand-600 font-bold border-b-2 border-brand-600 pb-0.5 transition"
+              className="text-brand-600 font-bold transition hover:text-brand-700"
             >
               Home
             </Link>
@@ -65,49 +57,40 @@ export default function Navbar() {
               How It Works
             </Link>
             <Link
-              href="#about"
+              href="#contact"
               className="hover:text-brand-600 transition-colors"
             >
-              About
+              Contact
             </Link>
           </nav>
 
-          {/* Right Action Items: Phone Pill + Book Now CTA + Account */}
+          {/* Right Action Items matching reference: Track Order + Book Now */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Phone Pill */}
-            <a
-              href="tel:+918700548416"
-              className="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-full transition flex items-center gap-1.5 shadow-2xs"
-            >
-              <Phone className="w-3.5 h-3.5 text-brand-600" />
-              <span>+91 87005 48416</span>
-            </a>
-
             {/* Customer Account & Order History Pill */}
             {customer ? (
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setHistoryModalOpen(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-sky-50 to-brand-50 hover:from-sky-100 hover:to-brand-100 border border-brand-200 rounded-full pl-1.5 pr-3 py-1 text-xs transition shadow-2xs group"
-                  title="View Customer Profile & Past Orders"
+                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full pl-1.5 pr-3 py-1.5 text-xs transition shadow-2xs group"
+                  title="View Customer Profile & Track Orders"
                 >
-                  <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-black text-[11px] shadow-xs group-hover:scale-105 transition-transform">
+                  <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[11px] shadow-xs group-hover:scale-105 transition-transform">
                     {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
                   </div>
                   <div className="text-left">
-                    <span className="font-extrabold text-slate-900 max-w-[90px] truncate block leading-tight">
+                    <span className="font-extrabold text-slate-900 max-w-[85px] truncate block leading-tight">
                       {customer.name.split(' ')[0]}
                     </span>
                     <span className="text-[9px] text-brand-600 font-bold block leading-none">
-                      Orders &amp; Bills
+                      Track Orders
                     </span>
                   </div>
                 </button>
                 <button
                   onClick={logout}
                   title="Sign Out"
-                  className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-slate-100 transition"
+                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-full hover:bg-slate-100 transition"
                   aria-label="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -117,52 +100,34 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => setHistoryModalOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full transition shadow-2xs group"
-                title="Customer History & Sign In"
+                className="text-xs sm:text-sm font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 px-4 py-2 rounded-xl transition shadow-2xs"
+                title="Track Order & Sign In"
               >
-                <div className="w-5 h-5 rounded-full bg-sky-100 text-brand-600 flex items-center justify-center">
-                  <User className="w-3 h-3" />
-                </div>
-                <span>My Orders</span>
+                Track Order
               </button>
             )}
 
-            {/* Book Now Primary Button */}
+            {/* Primary Action Button: solid vibrant royal blue "Book Now" */}
             <a
               href="#book-pickup"
-              className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-full transition-all shadow-md shadow-brand-500/20"
+              className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-xl transition shadow-xs flex items-center gap-1.5"
             >
-              Book Now
+              <span>Book Now</span>
             </a>
           </div>
 
           {/* Mobile Right Controls */}
           <div className="flex md:hidden items-center gap-2">
-            {/* Mobile Profile / History Icon Button */}
-            <button
-              type="button"
-              onClick={() => setHistoryModalOpen(true)}
-              aria-label="My Orders & Profile"
-              className="w-8 h-8 rounded-full bg-sky-50 border border-brand-200 text-brand-700 flex items-center justify-center font-black text-xs shadow-2xs active:scale-95"
-            >
-              {customer ? (
-                customer.name ? customer.name.charAt(0).toUpperCase() : 'C'
-              ) : (
-                <User className="w-4 h-4 text-brand-600" />
-              )}
-            </button>
-
             <a
               href="#book-pickup"
-              className="bg-brand-600 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-xs"
+              className="bg-brand-600 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-sm"
             >
-              Book
+              Pickup
             </a>
-
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-800 focus:outline-none"
-              aria-label="Toggle menu"
+              className="p-2 text-slate-700 hover:text-brand-600 rounded-lg border border-slate-200"
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -170,124 +135,87 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-slate-200 bg-white px-5 py-5 space-y-3.5 text-sm font-medium animate-fade-in">
-          {customer ? (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setHistoryModalOpen(true);
-                }}
-                className="flex items-center gap-2 text-left min-w-0"
-              >
-                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-emerald-900 truncate">{customer.name}</p>
-                  <p className="text-[10px] text-emerald-700 font-semibold">View Order History &amp; Invoices →</p>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  logout();
-                  setMobileMenuOpen(false);
-                }}
-                className="text-xs font-bold text-red-600 bg-white px-2.5 py-1 rounded-lg border border-red-200 shrink-0 ml-2"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setHistoryModalOpen(true);
-              }}
-              className="w-full text-left p-3 bg-brand-50 border border-brand-200 rounded-xl flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center">
-                  <User className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-brand-900">Customer Account &amp; History</p>
-                  <p className="text-[10px] text-slate-500">View live status &amp; dual invoices</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-brand-700 bg-white px-2 py-1 rounded-lg border border-brand-200">
-                Open
-              </span>
-            </button>
-          )}
-
+        <div className="md:hidden border-b border-slate-200 bg-white px-5 pt-3 pb-6 space-y-3">
           <Link
             href="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-brand-600 font-bold py-1"
+            className="block text-sm font-bold text-brand-600 py-2 border-b border-slate-100"
           >
             Home
           </Link>
           <Link
             href="#services"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-slate-700 py-1"
+            className="block text-sm font-semibold text-slate-700 py-2 border-b border-slate-100"
           >
             Services
           </Link>
           <Link
             href="#pricing"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-slate-700 py-1"
+            className="block text-sm font-semibold text-slate-700 py-2 border-b border-slate-100"
           >
-            Pricing
+            Pricing &amp; Tariff
           </Link>
           <Link
             href="#how-it-works"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-slate-700 py-1"
+            className="block text-sm font-semibold text-slate-700 py-2 border-b border-slate-100"
           >
             How It Works
           </Link>
           <Link
             href="#about"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-slate-700 py-1"
+            className="block text-sm font-semibold text-slate-700 py-2 border-b border-slate-100"
           >
-            About
+            About Us
           </Link>
           <Link
-            href="/track"
+            href="#contact"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-slate-700 py-1"
+            className="block text-sm font-semibold text-slate-700 py-2 border-b border-slate-100"
           >
-            Track Order / Invoices
+            Contact
           </Link>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <a
-              href="tel:+918700548416"
-              className="text-xs font-bold text-brand-700 flex items-center gap-1.5"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>+91 87005 48416</span>
-            </a>
-            <Link
-              href="/admin/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[11px] uppercase tracking-wider text-slate-400 font-bold"
-            >
-              Staff Portal
-            </Link>
+          {/* Account inside mobile menu */}
+          <div className="pt-2">
+            {customer ? (
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <p className="font-extrabold text-slate-900">{customer.name}</p>
+                  <p className="text-slate-500">{customer.phone}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setHistoryModalOpen(true);
+                  }}
+                  className="bg-brand-600 text-white font-bold px-3 py-1.5 rounded-lg"
+                >
+                  My Orders
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setHistoryModalOpen(true);
+                }}
+                className="w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-lg text-xs transition"
+              >
+                Sign In / Track Past Orders
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Customer Profile & History Modal */}
+      {/* Customer Order History & Profile Modal */}
       <CustomerHistoryModal
         isOpen={historyModalOpen}
         onClose={() => setHistoryModalOpen(false)}

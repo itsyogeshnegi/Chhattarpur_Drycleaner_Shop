@@ -207,8 +207,23 @@ export default function CounterManagementPage() {
   const [createdOrder, setCreatedOrder] = useState<CreatedOrderResponse | null>(null);
   const [error, setError] = useState('');
 
-  // Fetch catalog from MongoDB
+  // Fetch catalog from MongoDB & auto-fill customer if passed via URL (from Customers List)
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const name = sp.get('customerName');
+      const phone = sp.get('customerPhone');
+      const address = sp.get('customerAddress');
+      if (name || phone || address) {
+        setCustomer((prev) => ({
+          ...prev,
+          name: name || prev.name,
+          phone: phone || prev.phone,
+          address: address || prev.address,
+        }));
+      }
+    }
+
     async function fetchCatalog() {
       try {
         const res = await fetch('/api/services');

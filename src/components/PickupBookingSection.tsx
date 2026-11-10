@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import {
   Calendar,
@@ -20,31 +21,14 @@ import {
   Loader2,
 } from 'lucide-react';
 
-interface PopularPriceItem {
-  name: string;
-  price: number;
-  iconName: 'shirt' | 'trouser' | 'coat' | 'saree' | 'bedsheet' | 'blanket';
-}
-
-const POPULAR_PRICING: PopularPriceItem[] = [
-  { name: 'Shirt / T-Shirt', price: 70, iconName: 'shirt' },
-  { name: 'Trouser / Jeans', price: 100, iconName: 'trouser' },
-  { name: 'Blazer / Coat', price: 300, iconName: 'coat' },
-  { name: 'Saree', price: 250, iconName: 'saree' },
-  { name: 'Bedsheet (Double)', price: 150, iconName: 'bedsheet' },
-  { name: 'Blanket / Quilt', price: 400, iconName: 'blanket' },
-];
-
-export default function PickupBookingSection({
-  onViewFullRates,
-}: {
-  onViewFullRates?: () => void;
-}) {
-  const { customer, openAuthModal, logout } = useCustomerAuth();
+export default function PickupBookingSection() {
+  const { customer, openAuthModal } = useCustomerAuth();
 
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    serviceType: "Men's & Women's Dry Cleaning",
+    garmentCount: '1 – 5 pieces',
     address: '',
     timeSlot: 'Morning (9:00 AM – 1:00 PM)',
     pickupDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -72,10 +56,8 @@ export default function PickupBookingSection({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prevent duplicate hits while submitting
     if (loading) return;
 
-    // 1. Requirement: Customer must have an account before booking
     if (!customer) {
       openAuthModal('register');
       return;
@@ -93,11 +75,11 @@ export default function PickupBookingSection({
       // Check if user has items selected in the Rate Calculator estimate
       let orderItems = [
         {
-          name: 'Doorstep Pickup Request',
+          name: `Doorstep Pickup (${formData.serviceType} - ${formData.garmentCount})`,
           serviceType: 'dry_clean',
           rate: 0,
           quantity: 1,
-          notes: `${formData.timeSlot} | Scheduled pickup for ${formData.pickupDate}`,
+          notes: `${formData.timeSlot} | Scheduled for ${formData.pickupDate}`,
         },
       ];
 
@@ -133,14 +115,13 @@ export default function PickupBookingSection({
           },
           items: orderItems,
           pickupDate: formData.pickupDate,
-          internalNotes: `Online request: ${formData.pickupDate} (${formData.timeSlot}) by registered customer ${customer.userId}`,
+          internalNotes: `Online request: ${formData.pickupDate} (${formData.timeSlot}) by ${customer.name || customer.userId}`,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
         setBookedOrder(data.order);
-        // Clear estimate cart upon successful booking
         try {
           localStorage.removeItem('alharam_active_estimate');
         } catch {}
@@ -157,326 +138,253 @@ export default function PickupBookingSection({
     }
   };
 
-  const renderIcon = (type: PopularPriceItem['iconName']) => {
-    switch (type) {
-      case 'shirt':
-        return <Shirt className="w-4 h-4 text-brand-600" />;
-      case 'trouser':
-        return (
-          <svg className="w-4 h-4 text-brand-600 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-            <path d="M6 3h12l-1 18-4-1-1-9-1 9-4 1z" />
-          </svg>
-        );
-      case 'coat':
-        return (
-          <svg className="w-4 h-4 text-brand-600 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-            <path d="M4 4h16l-2 16H6z" />
-            <path d="m8 4 4 7 4-7" />
-          </svg>
-        );
-      case 'saree':
-        return <Sparkles className="w-4 h-4 text-brand-600" />;
-      case 'bedsheet':
-        return <Bed className="w-4 h-4 text-brand-600" />;
-      case 'blanket':
-        return (
-          <svg className="w-4 h-4 text-brand-600 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-            <rect x="3" y="6" width="18" height="12" rx="2" />
-            <path d="M3 10h18" />
-          </svg>
-        );
-    }
-  };
-
   return (
-    <section id="pricing" className="py-16 sm:py-20 bg-white scroll-mt-20">
+    <section id="book-pickup" className="py-16 sm:py-24 bg-white border-t border-slate-100 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main 2-Column Side-by-Side Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-          {/* Left Column: Popular Pricing (7 cols) */}
-          <div className="lg:col-span-7 space-y-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          {/* Left Column: Heading, Subtitle & 3D Product Visual with Plant matching reference image (5 cols) */}
+          <div className="lg:col-span-5 space-y-6">
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                Popular Pricing
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-600 flex items-center gap-1.5">
+                <span className="w-5 h-0.5 bg-brand-600 inline-block"></span>
+                Get a Quote
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5">
+                Request a Pickup
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Transparent and affordable pricing.
+              <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+                Share your requirements and our team will get back to you with the best price and doorstep collection slot.
               </p>
             </div>
 
-            {/* Pricing List Table Card */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-              {POPULAR_PRICING.map((item) => (
-                <div
-                  key={item.name}
-                  className="px-4 sm:px-5 py-3 flex items-center justify-between hover:bg-slate-50/70 transition gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-sky-50 border border-brand-100 flex items-center justify-center shrink-0">
-                      {renderIcon(item.iconName)}
+            {/* Visual Box with Plant (styled like the 3D book/box + potted plant in reference) */}
+            <div className="relative pt-4">
+              <div className="bg-gradient-to-tr from-sky-50 via-slate-50 to-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm relative overflow-hidden flex items-center justify-center min-h-[280px]">
+                {/* 3D Package Mockup */}
+                <div className="relative z-10 w-full max-w-xs bg-white rounded-2xl p-5 border border-slate-200/90 shadow-md space-y-3 transform -rotate-1 hover:rotate-0 transition duration-300">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold text-xs">
+                        AH
+                      </div>
+                      <span className="font-extrabold text-xs text-slate-900 tracking-tight">
+                        Al-Haram Care
+                      </span>
                     </div>
-                    <span className="font-semibold text-slate-800 text-xs sm:text-sm truncate">
-                      {item.name}
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      Verified
                     </span>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                      ₹ {item.price}
-                    </span>
+                  <div className="space-y-1.5 text-[11px] text-slate-600">
+                    <p className="flex justify-between">
+                      <span className="text-slate-400">Service:</span>
+                      <span className="font-semibold text-slate-800">Italian Steam &amp; DC</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-slate-400">Pickup Area:</span>
+                      <span className="font-semibold text-slate-800">Chattarpur, Delhi</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-slate-400">Fabric Check:</span>
+                      <span className="font-semibold text-emerald-600">Zero Damage Tag</span>
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Doorstep Collection</span>
+                    <span className="font-bold text-brand-600">Free Pickup</span>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Bottom Link to Full Price List */}
-            <div className="pt-0.5">
-              <a
-                href="#pricing"
-                onClick={(e) => {
-                  if (onViewFullRates) {
-                    e.preventDefault();
-                    onViewFullRates();
-                  }
-                }}
-                className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 transition"
-              >
-                <span>View Full Price List</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+                {/* Ambient Soft Elements */}
+                <div className="absolute top-4 right-4 w-16 h-16 bg-brand-100/60 rounded-full blur-xl pointer-events-none"></div>
+                <div className="absolute bottom-4 left-4 w-20 h-20 bg-sky-100/70 rounded-full blur-2xl pointer-events-none"></div>
+              </div>
             </div>
           </div>
 
-          {/* Right Column: Book a Pickup Card (5 cols) */}
-          <div id="book-pickup" className="lg:col-span-5 scroll-mt-24">
-            <span id="pickup-booking" className="block -mt-24 pt-24 invisible pointer-events-none" />
+          {/* Right Column: Clean White Form Card matching reference image (7 cols) */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
             {bookedOrder ? (
-              /* Success State */
-              <div className="bg-white border-2 border-emerald-400 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-lg shadow-emerald-500/10">
-                <div className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-md">
-                  <CheckCircle2 className="w-7 h-7" />
+              <div className="text-center py-6 space-y-5 animate-fade-in">
+                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
+                  <CheckCircle2 className="w-8 h-8" />
                 </div>
 
                 <div className="space-y-1">
-                  <h3 className="text-xl font-bold text-slate-900">
-                    Doorstep Pickup Scheduled!
+                  <h3 className="text-xl font-extrabold text-slate-900">
+                    Pickup Scheduled Successfully!
                   </h3>
-                  <p className="text-xs text-slate-600">
-                    Thank you, <span className="font-bold">{bookedOrder.customer.name}</span>. Our collection rider has been assigned and will arrive with clean garment hampers.
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    Thank you, <span className="font-bold text-slate-900">{bookedOrder.customer.name}</span>. Our collection rider will arrive at your address.
                   </p>
                 </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left text-xs space-y-2">
-                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span className="text-[10px] uppercase font-bold text-slate-500">
-                      Tracking Invoice Ref
-                    </span>
-                    <span className="font-mono font-black text-brand-700 text-sm">
-                      {bookedOrder.invoiceNumber}
-                    </span>
-                  </div>
-                  <p className="text-slate-700 text-[11px] flex items-start gap-1 pt-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                    <span className="break-words">{bookedOrder.customer.address}</span>
-                  </p>
-                  <p className="text-slate-600 text-[11px] flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>+91 {bookedOrder.customer.phone}</span>
-                  </p>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 inline-block text-left text-xs space-y-1 min-w-[240px]">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Invoice / Tracking ID</p>
+                  <p className="text-lg font-mono font-bold text-brand-600">{bookedOrder.invoiceNumber}</p>
+                  <p className="text-[11px] text-slate-600 pt-0.5">📍 {bookedOrder.customer.address}</p>
                 </div>
 
-                <div className="flex flex-col gap-2 pt-1">
+                <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
                   <a
                     href={`https://wa.me/918700548416?text=${encodeURIComponent(
-                      `Hello Al Haram Drycleaners, I scheduled a pickup for Ref #${bookedOrder.invoiceNumber}. Customer: ${bookedOrder.customer.name}. Please confirm collection time.`
+                      `Hello Al-Haram Drycleaners! I have booked a pickup for Ref #${bookedOrder.invoiceNumber}. Name: ${bookedOrder.customer.name}.`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs transition flex items-center justify-center gap-2"
                   >
                     <MessageSquare className="w-4 h-4" />
                     <span>Confirm on WhatsApp</span>
                   </a>
 
-                  <a
-                    href={`/track?query=${bookedOrder.invoiceNumber}`}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+                  <button
+                    onClick={() => setBookedOrder(null)}
+                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-2.5 px-5 rounded-lg text-xs transition"
                   >
-                    <span>Track Order Status Live</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
+                    Book Another Order
+                  </button>
                 </div>
               </div>
             ) : (
-              /* The Clean "Book a Pickup" Card Matching the Reference */
-              <div className="bg-sky-50/70 border border-sky-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                    Book a Pickup
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Schedule a pickup in less than a minute.
-                  </p>
-                </div>
-
-                {/* Verified Customer Status */}
-                {customer && (
-                  <div className="p-3 bg-white/90 border border-emerald-200 rounded-xl flex items-center justify-between text-xs shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[10px]">
-                        ✓
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">{customer.name}</p>
-                        <p className="text-[10px] text-emerald-700 font-semibold">+91 {customer.phone || customer.userId}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={logout}
-                      className="text-[11px] font-bold text-slate-500 hover:text-red-600 flex items-center gap-1"
-                      title="Switch account"
-                    >
-                      <LogOut className="w-3 h-3" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                )}
-
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
                     {error}
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-3.5">
-                  {/* Full Name */}
+                {/* Row 1: Your Name & Email/Mobile */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Your Full Name *
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Your Name *
                     </label>
-                    <div className="relative flex items-center">
-                      <div className="absolute left-3.5 text-slate-400 pointer-events-none">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Rahul Sharma"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition shadow-2xs"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter your name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    />
                   </div>
 
-                  {/* Mobile Number */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      WhatsApp Mobile Number *
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Email / Mobile *
                     </label>
-                    <div className="relative flex items-center">
-                      <div className="absolute left-3.5 text-slate-400 pointer-events-none">
-                        <Phone className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="tel"
-                        required
-                        placeholder="e.g. 98765 43210"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition shadow-2xs"
-                      />
-                    </div>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Enter your phone or email"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    />
                   </div>
+                </div>
 
-                  {/* Pickup Address */}
+                {/* Row 2: Service Type & Quantity/Garment Count */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Pickup Address in South Delhi *
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Product / Service Type *
                     </label>
-                    <div className="relative flex items-center">
-                      <div className="absolute left-3.5 text-slate-400 pointer-events-none">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        placeholder="House / Flat No., Colony / Apartment, Landmark"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition shadow-2xs"
-                      />
-                    </div>
+                    <select
+                      value={formData.serviceType}
+                      onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    >
+                      <option value="Men's & Women's Dry Cleaning">Men&apos;s &amp; Women&apos;s Dry Cleaning</option>
+                      <option value="Suits & Blazers">Suits, Blazers &amp; Sherwanis</option>
+                      <option value="Sarees & Bridal Lehengas">Sarees &amp; Bridal Lehengas</option>
+                      <option value="Winter Quilts & Blankets">Winter Quilts &amp; Blankets</option>
+                      <option value="Everyday Laundry (Per Kg / Pc)">Everyday Laundry (Per Kg / Pc)</option>
+                    </select>
                   </div>
 
-                  {/* Preferred Date & Time Slot in 2 cols */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Pickup Date *
-                      </label>
-                      <div className="relative flex items-center">
-                        <div className="absolute left-3 text-slate-400 pointer-events-none">
-                          <Calendar className="w-3.5 h-3.5" />
-                        </div>
-                        <input
-                          type="date"
-                          required
-                          suppressHydrationWarning
-                          value={formData.pickupDate}
-                          onChange={(e) => setFormData({ ...formData, pickupDate: e.target.value })}
-                          className="w-full pl-9 pr-2.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition shadow-2xs font-medium"
-                        />
-                      </div>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Quantity / Garments *
+                    </label>
+                    <select
+                      value={formData.garmentCount}
+                      onChange={(e) => setFormData({ ...formData, garmentCount: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    >
+                      <option value="1 – 5 pieces">1 – 5 pieces</option>
+                      <option value="6 – 10 pieces">6 – 10 pieces</option>
+                      <option value="10 – 20 pieces">10 – 20 pieces</option>
+                      <option value="20+ pieces (Bulk)">20+ pieces (Bulk)</option>
+                    </select>
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Preferred Slot
-                      </label>
-                      <div className="relative flex items-center">
-                        <div className="absolute left-3 text-slate-400 pointer-events-none">
-                          <Clock className="w-3.5 h-3.5" />
-                        </div>
-                        <select
-                          value={formData.timeSlot}
-                          onChange={(e) => setFormData({ ...formData, timeSlot: e.target.value })}
-                          className="w-full pl-9 pr-2.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition shadow-2xs font-medium"
-                        >
-                          <option>Morning (9 AM – 1 PM)</option>
-                          <option>Afternoon (1 PM – 5 PM)</option>
-                          <option>Evening (5 PM – 9 PM)</option>
-                        </select>
-                      </div>
-                    </div>
+                {/* Row 3: Pickup Date & Time Slot */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Preferred Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.pickupDate}
+                      onChange={(e) => setFormData({ ...formData, pickupDate: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    />
                   </div>
 
-                  {/* Schedule Pickup CTA */}
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm py-3.5 rounded-xl transition shadow-md shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Scheduling Free Pickup...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Truck className="w-4 h-4" />
-                        <span>Confirm Free Doorstep Pickup</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Time Slot *
+                    </label>
+                    <select
+                      value={formData.timeSlot}
+                      onChange={(e) => setFormData({ ...formData, timeSlot: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
+                    >
+                      <option>Morning (9:00 AM – 1:00 PM)</option>
+                      <option>Afternoon (1:00 PM – 5:00 PM)</option>
+                      <option>Evening (5:00 PM – 9:00 PM)</option>
+                    </select>
+                  </div>
+                </div>
 
-                  <p className="text-[10px] text-center text-slate-500 leading-tight pt-1">
-                    📍 Covering DLF Farms, Chattarpur Enclave, Birla Farm, Mehrauli, Sultanpur, Saket &amp; South Delhi.
-                  </p>
-                </form>
-              </div>
+                {/* Row 4: Additional Details / Pickup Address */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Additional Details / Pickup Address *
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Tell us your pickup address in Chattarpur / South Delhi, and any specific fabric stains..."
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition resize-none"
+                  ></textarea>
+                </div>
+
+                {/* Solid Royal Blue Submit Button matching reference image */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-bold py-3.5 rounded-lg text-sm shadow-sm transition flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting Request...
+                    </span>
+                  ) : (
+                    <span>Submit Request</span>
+                  )}
+                </button>
+              </form>
             )}
           </div>
         </div>

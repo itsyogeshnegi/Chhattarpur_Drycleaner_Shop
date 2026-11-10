@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Truck,
   Shirt,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 
 interface OrderData {
@@ -30,6 +32,9 @@ interface OrderData {
   createdAt: string;
   pickupDate?: string;
   deliveryDueDate?: string;
+  deliveryOtp?: string;
+  deliveryVerifiedAt?: string;
+  deliveryVerifiedBy?: string;
 }
 
 function TrackContent() {
@@ -40,6 +45,7 @@ function TrackContent() {
   const [order, setOrder] = useState<OrderData | null>(null);
   const [searchedOrders, setSearchedOrders] = useState<OrderData[]>([]);
   const [error, setError] = useState('');
+  const [copiedOtp, setCopiedOtp] = useState(false);
 
   const handleSearch = async (queryToUse?: string) => {
     const q = (queryToUse !== undefined ? queryToUse : search).trim();
@@ -204,6 +210,89 @@ function TrackContent() {
               </Link>
             </div>
           </div>
+
+          {/* Delivery Verification OTP Section (Customer Security) */}
+          {order.status === 'out_for_delivery' && (
+            <div className="mx-6 sm:mx-8 p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-brand-900 to-slate-900 text-white shadow-xl border border-indigo-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-2xl shrink-0 animate-pulse">
+                    🛵
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      Rider On The Way
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black tracking-tight text-white">
+                      Delivery Verification OTP
+                    </h3>
+                  </div>
+                </div>
+
+                {order.deliveryOtp ? (
+                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2.5 rounded-2xl self-start sm:self-auto">
+                    <div className="flex items-center gap-1.5">
+                      {order.deliveryOtp.split('').map((digit, i) => (
+                        <span
+                          key={i}
+                          className="w-8 h-9 sm:w-9 sm:h-10 bg-white text-slate-900 rounded-xl font-mono font-black text-lg sm:text-xl flex items-center justify-center shadow-md"
+                        >
+                          {digit}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (order.deliveryOtp) {
+                          navigator.clipboard.writeText(order.deliveryOtp);
+                          setCopiedOtp(true);
+                          setTimeout(() => setCopiedOtp(false), 2500);
+                        }
+                      }}
+                      className="text-[11px] font-bold text-indigo-200 hover:text-white px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 transition shrink-0 ml-1"
+                    >
+                      {copiedOtp ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-indigo-200">Generating secure delivery OTP...</span>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-white/10 flex items-start gap-2.5 text-xs text-indigo-100">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p>
+                  <strong className="text-white">Customer Security Notice:</strong> Please share this 4-digit OTP with our delivery partner only after you receive and inspect all your clothes.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Delivery Completed Confirmation */}
+          {order.status === 'delivered' && (
+            <div className="mx-6 sm:mx-8 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  ✓
+                </div>
+                <div>
+                  <p className="font-extrabold text-emerald-950 text-sm">
+                    Order Successfully Delivered
+                  </p>
+                  <p className="text-emerald-700 text-[11px]">
+                    {order.deliveryVerifiedBy === 'customer_otp'
+                      ? 'Verified via Customer Delivery OTP'
+                      : 'Handed over at store counter'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-300 self-start sm:self-auto">
+                Completed
+              </span>
+            </div>
+          )}
 
           {/* Progress Timeline */}
           <div className="px-6 sm:px-8 py-4">
