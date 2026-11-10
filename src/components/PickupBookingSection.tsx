@@ -21,48 +21,17 @@ import {
 
 interface PopularPriceItem {
   name: string;
-  subtext: string;
   price: number;
   iconName: 'shirt' | 'trouser' | 'coat' | 'saree' | 'bedsheet' | 'blanket';
 }
 
 const POPULAR_PRICING: PopularPriceItem[] = [
-  {
-    name: 'Shirt / T-Shirt',
-    subtext: 'Eco dry clean, collar stain treatment & Italian steam press',
-    price: 70,
-    iconName: 'shirt',
-  },
-  {
-    name: 'Trouser / Jeans / Chinos',
-    subtext: 'Deep fabric care, cuff cleaning & razor-sharp crease',
-    price: 100,
-    iconName: 'trouser',
-  },
-  {
-    name: 'Blazer / Bespoke Suit Coat',
-    subtext: 'Shoulder pad contour preservation, inner lining care & steam press',
-    price: 300,
-    iconName: 'coat',
-  },
-  {
-    name: 'Silk Saree / Designer Wear',
-    subtext: 'Delicate zari border protection, gentle solvent & steam finish',
-    price: 250,
-    iconName: 'saree',
-  },
-  {
-    name: 'Bedsheet (Double / King)',
-    subtext: 'Sanitized water wash, fabric softener & automated roller finish',
-    price: 150,
-    iconName: 'bedsheet',
-  },
-  {
-    name: 'Heavy Blanket / Winter Quilt (Razai)',
-    subtext: 'Anti-bacterial deep wash, allergen removal & loft restoration',
-    price: 400,
-    iconName: 'blanket',
-  },
+  { name: 'Shirt / T-Shirt', price: 70, iconName: 'shirt' },
+  { name: 'Trouser / Jeans', price: 100, iconName: 'trouser' },
+  { name: 'Blazer / Coat', price: 300, iconName: 'coat' },
+  { name: 'Saree', price: 250, iconName: 'saree' },
+  { name: 'Bedsheet (Double)', price: 150, iconName: 'bedsheet' },
+  { name: 'Blanket / Quilt', price: 400, iconName: 'blanket' },
 ];
 
 export default function PickupBookingSection({
@@ -191,16 +160,13 @@ export default function PickupBookingSection({
         {/* Main 2-Column Side-by-Side Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
           {/* Left Column: Popular Pricing (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="lg:col-span-7 space-y-3.5">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-brand-200/80 text-brand-700 text-xs font-bold tracking-wide mb-2">
-                <span>Transparent South Delhi Price Card</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                 Popular Pricing
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                Clear, standardized rates with zero hidden charges. Every garment is inspected, stain-treated, and sanitized in gentle eco-safe solvents.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Transparent and affordable pricing.
               </p>
             </div>
 
@@ -209,57 +175,40 @@ export default function PickupBookingSection({
               {POPULAR_PRICING.map((item) => (
                 <div
                   key={item.name}
-                  className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/70 transition gap-3"
+                  className="px-4 sm:px-5 py-3 flex items-center justify-between hover:bg-slate-50/70 transition gap-3"
                 >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-sky-50 border border-brand-100 flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-sky-50 border border-brand-100 flex items-center justify-center shrink-0">
                       {renderIcon(item.iconName)}
                     </div>
-                    <div className="min-w-0">
-                      <span className="font-bold text-slate-900 text-xs sm:text-sm block truncate">
-                        {item.name}
-                      </span>
-                      <span className="text-[11px] text-slate-500 block truncate">
-                        {item.subtext}
-                      </span>
-                    </div>
+                    <span className="font-semibold text-slate-800 text-xs sm:text-sm truncate">
+                      {item.name}
+                    </span>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="font-extrabold text-brand-700 text-sm sm:text-base">
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
                       ₹ {item.price}
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-medium">per piece</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Trust Assurance Strip */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Zero Advance Required • Pay Only After Delivery</span>
-              </div>
-              <p className="text-[11px] text-slate-500 pl-6">
-                Inspect your clothes at your doorstep. We accept UPI, Google Pay, Credit/Debit Cards, and Cash upon satisfactory delivery.
-              </p>
-            </div>
-
             {/* Bottom Link to Full Price List */}
-            <div className="pt-1 flex items-center justify-between">
+            <div className="pt-0.5">
               <a
-                href="#full-price-list"
+                href="#pricing"
                 onClick={(e) => {
                   if (onViewFullRates) {
                     e.preventDefault();
                     onViewFullRates();
                   }
                 }}
-                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-brand-600 hover:text-brand-700 transition"
+                className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 transition"
               >
-                <span>View Full 50+ Item Price List &amp; Live Bill Estimator</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>View Full Price List</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </a>
             </div>
           </div>
@@ -327,11 +276,11 @@ export default function PickupBookingSection({
               /* The Clean "Book a Pickup" Card Matching the Reference */
               <div className="bg-sky-50/70 border border-sky-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Book a Free Pickup
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                    Book a Pickup
                   </h3>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Schedule doorstep collection across Chattarpur, DLF Farms, Mehrauli &amp; South Delhi in less than a minute.
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Schedule a pickup in less than a minute.
                   </p>
                 </div>
 
