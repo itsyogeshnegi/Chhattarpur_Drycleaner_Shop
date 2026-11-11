@@ -14,8 +14,10 @@ import {
   ShieldCheck,
   AlertCircle,
   X,
+  CreditCard,
 } from 'lucide-react';
 import { generateWhatsAppInvoiceUrl, generateWhatsAppReadyAlertUrl } from '@/lib/whatsapp';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 
 interface OrderRecord {
   _id: string;
@@ -53,9 +55,20 @@ function OrdersContent() {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState('');
 
+  // Record Payment Modal state
+  const [paymentModalOrder, setPaymentModalOrder] = useState<OrderRecord | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'online_razorpay' | 'upi' | 'cash' | 'card'>(
+    'online_razorpay'
+  );
+  const [paymentTxRef, setPaymentTxRef] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useBodyScrollLock(Boolean(otpModalOrder) || Boolean(paymentModalOrder));
 
   const toggleOrderExpand = (orderId: string) => {
     setExpandedOrders((prev) => ({
@@ -164,6 +177,43 @@ function OrdersContent() {
       setOtpError('Network error while verifying OTP');
     } finally {
       setOtpVerifying(false);
+    }
+  };
+
+  // Record payment / settle Razorpay.me, UPI, Cash, or Card balance
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentModalOrder) return;
+
+    setPaymentSaving(true);
+    setPaymentError('');
+    try {
+      const res = await fetch(`/api/orders/${paymentModalOrder._id}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod,
+          markFullPaid: true,
+          transactionRef: paymentTxRef.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.order) {
+        setOrders((prev) =>
+          prev.map((o) => (o._id === paymentModalOrder._id ? { ...o, ...data.order } : o))
+        );
+        setFeedbackMessage(
+          `Payment settled for Invoice #${paymentModalOrder.invoiceNumber} via ${paymentMethod.replace('_', ' ').toUpperCase()}.`
+        );
+        setPaymentModalOrder(null);
+        setPaymentTxRef('');
+      } else {
+        setPaymentError(data.message || 'Failed to record payment');
+      }
+    } catch {
+      setPaymentError('Network error while recording payment.');
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -436,17 +486,31 @@ function OrdersContent() {
                     {/* Total & Balance */}
                     <td className="py-2.5 px-2.5">
                       <span className="font-bold text-slate-900 text-xs">₹{ord.grandTotal}</span>
-                      <p className="text-[9px] mt-0.5">
+                      <div className="text-[9px] mt-0.5 flex flex-col items-start gap-1">
                         {ord.balanceAmount > 0 ? (
-                          <span className="text-amber-700 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
-                            Bal: ₹{ord.balanceAmount}
-                          </span>
+                          <>
+                            <span className="text-amber-700 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                              Bal: ₹{ord.balanceAmount}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentModalOrder(ord);
+                                setPaymentMethod('online_razorpay');
+                                setPaymentTxRef('');
+                                setPaymentError('');
+                              }}
+                              className="text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer"
+                            >
+                              Mark Paid
+                            </button>
+                          </>
                         ) : (
                           <span className="text-emerald-700 font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
                             ✓ Paid
                           </span>
                         )}
-                      </p>
+                      </div>
                     </td>
 
                     {/* Delivery Status Dropdown */}
@@ -572,7 +636,7 @@ function OrdersContent() {
       {/* OTP Delivery Verification Modal - Teleported to document.body for dead-center positioning */}
       {mounted && otpModalOrder && createPortal(
         <div
-          className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-200"
+          className="fixed inset-0 z-[99999] overflow-hidden overscroll-none bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-200"
           onClick={() => {
             if (!otpVerifying) setOtpModalOrder(null);
           }}
@@ -728,6 +792,122 @@ function OrdersContent() {
                     Cancel
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Record Payment Modal */}
+      {mounted && paymentModalOrder && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] overflow-hidden overscroll-none bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-200"
+          onClick={() => {
+            if (!paymentSaving) setPaymentModalOrder(null);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[90vh] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl border border-slate-200 my-auto animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 bg-gradient-to-r from-emerald-700 via-teal-700 to-sky-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white border border-white/30 shrink-0">
+                  <CreditCard className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30">
+                    Counter & Online Settlement
+                  </span>
+                  <h3 className="font-extrabold text-base text-white mt-0.5">
+                    Record Invoice Payment
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!paymentSaving) setPaymentModalOrder(null);
+                }}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-black text-sm text-brand-700">
+                    {paymentModalOrder.invoiceNumber}
+                  </span>
+                  <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    Due: ₹{paymentModalOrder.balanceAmount}
+                  </span>
+                </div>
+                <p className="font-bold text-slate-900">{paymentModalOrder.customer.name}</p>
+                <p className="text-slate-500">Grand Total: ₹{paymentModalOrder.grandTotal}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) =>
+                    setPaymentMethod(
+                      e.target.value as 'online_razorpay' | 'upi' | 'cash' | 'card'
+                    )
+                  }
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="online_razorpay">Razorpay.me / Online Payment</option>
+                  <option value="upi">Counter UPI (GPay / PhonePe / Paytm)</option>
+                  <option value="cash">Cash at Counter / Delivery</option>
+                  <option value="card">Card / POS Machine</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Razorpay Payment ID / UPI Reference (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={paymentTxRef}
+                  onChange={(e) => setPaymentTxRef(e.target.value)}
+                  placeholder="e.g. pay_Q12345abc or UTR number"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+
+              {paymentError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{paymentError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={paymentSaving}
+                  onClick={() => setPaymentModalOrder(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={paymentSaving}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {paymentSaving
+                    ? 'Settling...'
+                    : `Mark ₹${paymentModalOrder.balanceAmount} as Paid`}
+                </button>
               </div>
             </form>
           </div>

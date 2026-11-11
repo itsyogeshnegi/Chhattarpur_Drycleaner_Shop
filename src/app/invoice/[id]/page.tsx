@@ -16,8 +16,77 @@ import {
   ArrowLeft,
   AlertTriangle,
   Camera,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
+import {
+  buildRazorpayMeUrl,
+  DEFAULT_RAZORPAY_ME_URL,
+  generateWhatsAppInvoiceUrl,
+} from '@/lib/whatsapp';
+
+interface RazorpayPaymentResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayCheckoutOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+  };
+  handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
+  modal?: {
+    ondismiss?: () => void;
+  };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  on?: (event: string, cb: (res: { error?: { description?: string } }) => void) => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayInstance;
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (window.Razorpay) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+    );
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
 
 interface OrderInvoiceData {
   _id: string;
@@ -64,17 +133,32 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [razorpayMeBaseUrl, setRazorpayMeBaseUrl] = useState(DEFAULT_RAZORPAY_ME_URL);
+  const [razorpayMeOpened, setRazorpayMeOpened] = useState<string | null>(null);
+  const [popupBlocked, setPopupBlocked] = useState(false);
+  const [copiedField, setCopiedField] = useState<'amount' | 'ref' | null>(null);
+  const [paymentError, setPaymentError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchInvoice() {
       try {
-        const res = await fetch(`/api/orders/${invoiceId}`);
-        const data = await res.json();
+        const [orderRes, settingsRes] = await Promise.all([
+          fetch(`/api/orders/${invoiceId}`),
+          fetch('/api/settings').catch(() => null),
+        ]);
+        const data = await orderRes.json();
         if (data.success && data.order) {
           setInvoice(data.order);
         } else {
           setError(data.message || 'Invoice not found');
+        }
+
+        if (settingsRes?.ok) {
+          const settingsData = await settingsRes.json();
+          if (settingsData?.success && settingsData.settings?.razorpayMeUrl) {
+            setRazorpayMeBaseUrl(settingsData.settings.razorpayMeUrl);
+          }
         }
       } catch {
         setError('Failed to load invoice');
@@ -89,12 +173,24 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     window.print();
   };
 
+  const handleCopy = async (field: 'amount' | 'ref', text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      // Clipboard fallback ignored cleanly
+    }
+  };
+
   const handleRazorpayPayment = async () => {
     if (!invoice) return;
     setPaying(true);
+    setPaymentError('');
+    setPopupBlocked(false);
 
     try {
-      // 1. Create order on server
+      // 1. Create order or payment link on server
       const res = await fetch('/api/payments/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,33 +199,93 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
       const orderData = await res.json();
 
       if (!orderData.success) {
-        alert(orderData.message || 'Failed to initiate payment');
+        setPaymentError(orderData.message || 'Failed to initiate payment');
         setPaying(false);
         return;
       }
 
-      // Check if Razorpay script is present or simulate test payment
-      const verifyRes = await fetch('/api/payments/razorpay/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: invoice.invoiceNumber,
-          razorpayOrderId: orderData.orderId,
-          razorpayPaymentId: `pay_${Date.now()}`,
-          razorpaySignature: 'valid_signature',
-        }),
+      if (orderData.mode === 'payment_link') {
+        const targetUrl =
+          orderData.razorpayMeUrl || buildRazorpayMeUrl(razorpayMeBaseUrl);
+        const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        setPopupBlocked(!opened);
+        setRazorpayMeOpened(targetUrl);
+        setPaying(false);
+        return;
+      }
+
+      // 2. Full Standard Razorpay Checkout modal mode (when API keys are active)
+      const loaded = await loadRazorpayScript();
+      if (!loaded || !window.Razorpay) {
+        setPaymentError(
+          'Unable to load Razorpay Checkout popup. Please use the direct Razorpay.me link below.'
+        );
+        setPaying(false);
+        return;
+      }
+
+      const rzp = new window.Razorpay({
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: "AL-HARAM Drycleaner's",
+        description: `Invoice #${invoice.invoiceNumber}`,
+        order_id: orderData.orderId,
+        prefill: {
+          name: invoice.customer.name,
+          email: invoice.customer.email || '',
+          contact: invoice.customer.phone,
+        },
+        notes: {
+          invoiceNumber: invoice.invoiceNumber,
+        },
+        theme: {
+          color: '#0284c7',
+        },
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch('/api/payments/razorpay/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                invoiceId: invoice.invoiceNumber,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyData.success && verifyData.invoice) {
+              setInvoice(verifyData.invoice);
+              setPaymentSuccess(true);
+              setRazorpayMeOpened(null);
+            } else {
+              setPaymentError(
+                verifyData.message || 'Payment verification failed. Please contact support.'
+              );
+            }
+          } catch {
+            setPaymentError('Network error while verifying payment.');
+          } finally {
+            setPaying(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setPaying(false),
+        },
       });
 
-      const verifyData = await verifyRes.json();
-      if (verifyData.success) {
-        setInvoice(verifyData.invoice);
-        setPaymentSuccess(true);
-      } else {
-        alert('Payment verification failed');
-      }
+      rzp.on?.('payment.failed', (failureRes) => {
+        setPaymentError(
+          failureRes?.error?.description || 'Payment was not completed in Razorpay Checkout.'
+        );
+        setPaying(false);
+      });
+
+      rzp.open();
     } catch {
-      alert('Network error while processing payment');
-    } finally {
+      setPaymentError('Network error while initiating Razorpay payment.');
       setPaying(false);
     }
   };
@@ -163,6 +319,21 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     );
   }
 
+  const payableAmount =
+    invoice.paymentStatus === 'paid'
+      ? 0
+      : invoice.balanceAmount > 0
+      ? invoice.balanceAmount
+      : invoice.grandTotal;
+  const directRazorpayMeUrl = buildRazorpayMeUrl(razorpayMeBaseUrl);
+  const isCheckoutKeyConfigured = Boolean(
+    process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
+      !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.includes('placeholder')
+  );
+  const whatsappConfirmUrl = `https://wa.me/918700548416?text=${encodeURIComponent(
+    `Hello AL-HARAM Drycleaner's, I have completed payment of ₹${payableAmount} via Razorpay.me for Invoice #${invoice.invoiceNumber} (${invoice.customer.name}). Please verify and mark my bill Paid.`
+  )}`;
+
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
   const whatsappUrl = generateWhatsAppInvoiceUrl({
     customerName: invoice.customer.name,
@@ -175,6 +346,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     items: invoice.items,
     status: invoice.status,
     invoiceUrl: currentUrl,
+    razorpayMeUrl: razorpayMeBaseUrl,
   });
 
   // Extract all inspection photos across items
@@ -466,25 +638,120 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           )}
 
           {/* ONLINE RAZORPAY PAYMENT (Hidden when printing) */}
-          {invoice.paymentStatus !== 'paid' && (
-            <div className="no-print bg-gradient-to-r from-brand-900 to-slate-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
-              <div className="space-y-1 text-center sm:text-left">
-                <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <CreditCard className="w-5 h-5 text-amber-400" />
-                  <span className="font-extrabold text-base">Pay Online Securely via Razorpay</span>
+          {invoice.paymentStatus !== 'paid' && payableAmount > 0 && (
+            <div className="no-print space-y-3">
+              {paymentError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-medium flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{paymentError}</span>
                 </div>
-                <p className="text-xs text-slate-300">
-                  Pay ₹{invoice.balanceAmount > 0 ? invoice.balanceAmount : invoice.grandTotal} using UPI (Google Pay, PhonePe, Paytm), Cards, or Net Banking.
-                </p>
-              </div>
+              )}
 
-              <button
-                onClick={handleRazorpayPayment}
-                disabled={paying}
-                className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-6 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap"
-              >
-                {paying ? 'Connecting Gateway...' : 'Pay Bill Now (Razorpay)'}
-              </button>
+              {razorpayMeOpened && (
+                <div className="bg-sky-50 border border-sky-200 text-sky-900 p-4 rounded-2xl space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm">
+                      {popupBlocked
+                        ? 'Click "Open Razorpay.me Page" below to complete payment'
+                        : `Razorpay.me Opened — Enter ₹${payableAmount}`}
+                    </p>
+                    <p className="text-sky-800 leading-relaxed">
+                      On Razorpay.me, enter the exact amount and put your Invoice number in the required{' '}
+                      <span className="font-bold">Comment</span> field, then pay via UPI, Card, or Net Banking:
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="bg-white border border-sky-200 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-sky-700">1. Amount to Enter</p>
+                        <p className="font-mono font-black text-sm text-slate-900">₹{payableAmount}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy('amount', String(payableAmount))}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 font-bold text-[11px] transition cursor-pointer"
+                      >
+                        {copiedField === 'amount' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedField === 'amount' ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-sky-200 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-sky-700">2. Comment Field</p>
+                        <p className="font-mono font-black text-xs text-slate-900">Invoice #{invoice.invoiceNumber}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy('ref', `Invoice #${invoice.invoiceNumber}`)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 font-bold text-[11px] transition cursor-pointer"
+                      >
+                        {copiedField === 'ref' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedField === 'ref' ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-0.5">
+                    <a
+                      href={razorpayMeOpened}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold px-3.5 py-2 rounded-lg transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {popupBlocked ? 'Open Razorpay.me Page' : 'Reopen Razorpay.me Page'}
+                    </a>
+                    <a
+                      href={whatsappConfirmUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg transition"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Send Payment Screenshot on WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gradient-to-r from-brand-900 to-slate-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
+                <div className="space-y-1 text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
+                    <CreditCard className="w-5 h-5 text-amber-400" />
+                    <span className="font-extrabold text-base">Pay Online Securely via Razorpay</span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Pay ₹{payableAmount} (Ref: <span className="font-mono font-bold text-amber-300">{invoice.invoiceNumber}</span>) using UPI (Google Pay, PhonePe, Paytm), Cards, or Net Banking.
+                  </p>
+                </div>
+
+                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <button
+                    onClick={handleRazorpayPayment}
+                    disabled={paying}
+                    className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+                  >
+                    {paying ? 'Connecting Razorpay...' : `Pay ₹${payableAmount} via Razorpay`}
+                  </button>
+                  {!isCheckoutKeyConfigured && (
+                    <a
+                      href={directRazorpayMeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        setPopupBlocked(false);
+                        setRazorpayMeOpened(directRazorpayMeUrl);
+                      }}
+                      className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/25 font-bold py-3 px-4 rounded-xl transition text-xs flex items-center justify-center gap-1.5 whitespace-nowrap"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+                      Razorpay.me
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

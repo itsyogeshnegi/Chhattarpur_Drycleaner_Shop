@@ -25,6 +25,7 @@ import {
 import { compressImageUnder50KB } from '@/lib/imageCompression';
 import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 
 interface RateItem {
   _id: string;
@@ -73,6 +74,8 @@ export default function CounterManagementPage() {
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [savedSuccessId, setSavedSuccessId] = useState<string | null>(null);
   const [showNewGarmentModal, setShowNewGarmentModal] = useState(false);
+
+  useBodyScrollLock(showNewGarmentModal);
   const [newGarment, setNewGarment] = useState({
     name: '',
     category: 'mens',
@@ -1070,7 +1073,7 @@ export default function CounterManagementPage() {
       </div>
       {/* Add New Garment to Catalog Modal */}
       {showNewGarmentModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-hidden overscroll-none bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">

@@ -7,6 +7,7 @@ export interface IShopSettings extends Document {
   phone1: string;
   phone2: string;
   whatsappNumber: string;
+  razorpayMeUrl: string;
   email: string;
   invoicePrefix: string;
   defaultTaxRate: number;
@@ -38,6 +39,7 @@ const ShopSettingsSchema = new Schema<IShopSettings>(
     phone1: { type: String, default: "+91 87005 48416" },
     phone2: { type: String, default: "+91 88513 07434" },
     whatsappNumber: { type: String, default: "918700548416" },
+    razorpayMeUrl: { type: String, default: "https://razorpay.me/@ashiyaalharamdrycleaner" },
     email: { type: String, default: "contact@alharamdrycleaners.com" },
     invoicePrefix: { type: String, default: "AHDC" },
     defaultTaxRate: { type: Number, default: 0 },

@@ -1,3 +1,12 @@
+export const DEFAULT_RAZORPAY_ME_URL =
+  process.env.NEXT_PUBLIC_RAZORPAY_ME_URL || 'https://razorpay.me/@ashiyaalharamdrycleaner';
+
+export function buildRazorpayMeUrl(baseUrl?: string): string {
+  const raw = (baseUrl || DEFAULT_RAZORPAY_ME_URL).trim();
+  // Razorpay V2 handles (razorpay.me/@handle) reject /<amount> and ?amount= parameters
+  return raw.replace(/\/+$/, '').replace(/^(https?:\/\/razorpay\.me\/@[^/?#]+)\/.*$/i, '$1');
+}
+
 export interface WhatsAppInvoicePayload {
   customerName: string;
   customerPhone: string;
@@ -14,6 +23,7 @@ export interface WhatsAppInvoicePayload {
   }>;
   status: string;
   invoiceUrl: string;
+  razorpayMeUrl?: string;
 }
 
 export function generateWhatsAppInvoiceUrl(payload: WhatsAppInvoicePayload): string {
@@ -51,6 +61,17 @@ export function generateWhatsAppInvoiceUrl(payload: WhatsAppInvoicePayload): str
   const moreItemsText =
     payload.items.length > 5 ? `  ...and ${payload.items.length - 5} more items\n` : '';
 
+  const dueAmount =
+    payload.paymentStatus === 'paid'
+      ? 0
+      : payload.balanceAmount !== undefined
+      ? payload.balanceAmount
+      : payload.grandTotal;
+  const quickPayBlock =
+    dueAmount > 0
+      ? `\n💳 *Pay ₹${dueAmount} Online (Razorpay / UPI):*\n${buildRazorpayMeUrl(payload.razorpayMeUrl)}\n*(Enter Amount: ₹${dueAmount} & Comment: ${payload.invoiceNumber})*\n`
+      : '';
+
   const message = `✨ *AL-HARAM DRYCLEANER'S AND LAUNDERETTES* ✨
 ━━━━━━━━━━━━━━━━━━━━━━━━
 Dear *${payload.customerName}*,
@@ -67,7 +88,7 @@ ${moreItemsText}━━━━━━━━━━━━━━━━━━━━━�
 
 🔗 *View Complete Invoice, Garment Photos & Download PDF:*
 ${payload.invoiceUrl}
-
+${quickPayBlock}
 📍 *Store Address:*
 A-1/67, Birla Farm Colony, Chattarpur, New Delhi-110074
 📞 *Helpline:* +91 87005 48416 / +91 88513 07434`;
@@ -86,6 +107,7 @@ export function generateWhatsAppReadyAlertUrl(payload: {
   itemsSummary?: string;
   invoiceUrl?: string;
   trackUrl?: string;
+  razorpayMeUrl?: string;
 }): string {
   let cleanPhone = payload.customerPhone.replace(/[^0-9]/g, '').replace(/^0+/, '');
   if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) {
@@ -118,6 +140,11 @@ export function generateWhatsAppReadyAlertUrl(payload: {
       ? `⚠️ *Balance Due:* ₹${payload.balanceAmount}/- (Net: ₹${payload.grandTotal})`
       : `✅ *Payment:* Fully Settled / Paid (₹${payload.grandTotal})`;
 
+  const payOnlineLine =
+    (payload.balanceAmount ?? 0) > 0
+      ? `💳 *Pay ₹${payload.balanceAmount} Online (Razorpay / UPI):*\n${buildRazorpayMeUrl(payload.razorpayMeUrl)}\n*(Enter Amount: ₹${payload.balanceAmount} & Comment: ${payload.invoiceNumber})*\n\n`
+      : '';
+
   const message = `${alertTitle}
 ━━━━━━━━━━━━━━━━━━━━━━━━
 Dear *${payload.customerName}*,
@@ -127,7 +154,7 @@ ${statusMessage}
 🧺 *Garments:* ${payload.itemsCount} items${payload.itemsSummary ? ` (${payload.itemsSummary})` : ''}
 💰 ${balanceText}
 
-📍 *Store Collection Address:*
+${payOnlineLine}📍 *Store Collection Address:*
 A-1/67, Birla Farm Colony, Chattarpur, New Delhi - 110074
 ⏰ *Timings:* Mon - Sun: 9:00 AM - 9:00 PM
 📞 *Helpline / WhatsApp:* +91 87005 48416 / +91 88513 07434

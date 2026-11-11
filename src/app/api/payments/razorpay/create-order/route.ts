@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
-import { getRazorpayClient } from '@/lib/razorpay';
+import { ShopSettings } from '@/models/ShopSettings';
+import {
+  buildRazorpayMePayUrl,
+  getRazorpayClient,
+  isRazorpayConfigured,
+} from '@/lib/razorpay';
 import mongoose from 'mongoose';
 
 export async function POST(req: NextRequest) {
@@ -16,26 +21,37 @@ export async function POST(req: NextRequest) {
       ? { $or: [{ _id: invoiceId }, { invoiceNumber: invoiceId }] }
       : { invoiceNumber: invoiceId };
 
-    const invoice = await OrderInvoice.findOne(query);
+    const [invoice, settings] = await Promise.all([
+      OrderInvoice.findOne(query),
+      ShopSettings.findOne().select('razorpayMeUrl').lean(),
+    ]);
+
     if (!invoice) {
       return NextResponse.json({ success: false, message: 'Invoice not found' }, { status: 404 });
     }
 
     if (invoice.paymentStatus === 'paid') {
-      return NextResponse.json({ success: false, message: 'Invoice is already fully paid' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: 'Invoice is already fully paid' },
+        { status: 400 }
+      );
     }
 
     const payableAmount = invoice.balanceAmount > 0 ? invoice.balanceAmount : invoice.grandTotal;
+    if (payableAmount <= 0) {
+      return NextResponse.json(
+        { success: false, message: 'No balance amount due on this invoice' },
+        { status: 400 }
+      );
+    }
 
-    // Razorpay amount in paise (multiply INR by 100)
     const amountInPaise = Math.round(payableAmount * 100);
+    const razorpayMePayUrl = buildRazorpayMePayUrl(settings?.razorpayMeUrl);
 
-    const razorpayKey = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
-
-    // If using live/test Razorpay API keys
-    if (razorpayKey && razorpayKey !== 'rzp_test_placeholder') {
+    // Mode 1: Real Razorpay Standard Checkout when API keys are configured
+    if (isRazorpayConfigured()) {
       const razorpay = getRazorpayClient();
-      const options = {
+      const razorpayOrder = await razorpay.orders.create({
         amount: amountInPaise,
         currency: 'INR',
         receipt: invoice.invoiceNumber,
@@ -44,39 +60,36 @@ export async function POST(req: NextRequest) {
           customerPhone: invoice.customer.phone,
           invoiceNumber: invoice.invoiceNumber,
         },
-      };
+      });
 
-      const razorpayOrder = await razorpay.orders.create(options);
       invoice.razorpayOrderId = razorpayOrder.id;
       await invoice.save();
 
       return NextResponse.json({
         success: true,
+        mode: 'checkout',
         orderId: razorpayOrder.id,
         amount: razorpayOrder.amount,
+        payableAmount,
         currency: razorpayOrder.currency,
-        key: razorpayKey,
+        key: process.env.RAZORPAY_KEY_ID,
         customer: invoice.customer,
+        razorpayMeUrl: razorpayMePayUrl,
       });
     }
 
-    // Demo/Simulated payment order for testing without active Razorpay account
-    const simulatedOrderId = `order_sim_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    invoice.razorpayOrderId = simulatedOrderId;
-    await invoice.save();
-
+    // Mode 2: Direct Razorpay.me payment handle fallback until API keys are added
     return NextResponse.json({
       success: true,
-      simulated: true,
-      orderId: simulatedOrderId,
+      mode: 'payment_link',
+      payableAmount,
       amount: amountInPaise,
       currency: 'INR',
-      key: 'rzp_test_placeholder',
+      razorpayMeUrl: razorpayMePayUrl,
       customer: invoice.customer,
     });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
+    return NextResponse.json({ success: false, message: errorMsg }, { status: 500 });
   }
 }
-

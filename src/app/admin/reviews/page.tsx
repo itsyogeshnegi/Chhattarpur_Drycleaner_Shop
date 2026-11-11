@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import {
   Star,
   Plus,
@@ -78,6 +79,8 @@ export default function AdminReviewsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useBodyScrollLock(modalOpen);
 
   const fetchAllReviews = useCallback(async () => {
     try {
@@ -550,12 +553,12 @@ export default function AdminReviewsPage() {
         modalOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-hidden overscroll-none bg-slate-900/60 backdrop-blur-xs"
             role="dialog"
             aria-modal="true"
           >
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
                   <span className="text-[10px] uppercase tracking-widest font-bold text-brand-300 block">
                     Admin Review Control
@@ -573,7 +576,7 @@ export default function AdminReviewsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveModal} className="p-6 space-y-4">
+              <form onSubmit={handleSaveModal} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
                 {/* Star Rating */}
                 <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                   <span className="text-xs font-bold text-slate-700">Star Rating</span>

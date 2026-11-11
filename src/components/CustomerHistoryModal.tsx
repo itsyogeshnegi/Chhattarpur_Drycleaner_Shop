@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import {
   User,
   Package,
@@ -53,6 +54,8 @@ export default function CustomerHistoryModal({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useBodyScrollLock(isOpen);
 
   const fetchOrders = useCallback(async (phoneToSearch?: string) => {
     const targetPhone = phoneToSearch || (customer ? customer.phone || customer.userId : '');
@@ -128,7 +131,7 @@ export default function CustomerHistoryModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 transition-opacity animate-in fade-in duration-200 flex items-center justify-center"
+      className="fixed inset-0 z-[99999] overflow-hidden overscroll-none bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 transition-opacity animate-in fade-in duration-200 flex items-center justify-center"
       onClick={onClose}
     >
       <div
@@ -203,7 +206,7 @@ export default function CustomerHistoryModal({
         </div>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto grow space-y-3.5">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain grow space-y-3.5">
           {/* Quick Mobile Search Banner when not logged in */}
           {!customer && (
             <div className="bg-sky-50/80 border border-brand-200 rounded-2xl p-3.5 space-y-2.5">

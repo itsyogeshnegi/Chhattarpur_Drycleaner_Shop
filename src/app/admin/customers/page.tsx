@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import {
   Users,
   Search,
@@ -64,6 +65,8 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<CustomerRecord | null>(null);
+
+  useBodyScrollLock(Boolean(selectedCustomerForHistory));
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -382,7 +385,7 @@ export default function AdminCustomersPage() {
 
       {/* Customer Orders History Modal (Action 2 Detail View) */}
       {selectedCustomerForHistory && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 rounded-t-2xl">
@@ -409,7 +412,7 @@ export default function AdminCustomersPage() {
             </div>
 
             {/* Modal Body: Customer Lifetime Stats & Full Orders History */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 grow">
+            <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4 grow">
               {/* Top Stats Banner */}
               <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
                 <div>

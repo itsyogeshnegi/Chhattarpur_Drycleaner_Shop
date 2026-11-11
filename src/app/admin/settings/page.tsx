@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  CreditCard,
 } from 'lucide-react';
 
 export default function AdminSettingsPage() {
@@ -34,6 +35,7 @@ export default function AdminSettingsPage() {
       'Dry cleaning & steam press tariff subject to fabric condition.',
     ],
     openingHours: 'Monday - Sunday: 9:00 AM – 9:00 PM',
+    razorpayMeUrl: 'https://razorpay.me/@ashiyaalharamdrycleaner',
   });
 
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,11 @@ export default function AdminSettingsPage() {
         const res = await fetch('/api/settings');
         const data = await res.json();
         if (data.success && data.settings) {
-          setSettings(data.settings);
+          setSettings((prev) => ({
+            ...prev,
+            ...data.settings,
+            razorpayMeUrl: data.settings.razorpayMeUrl || prev.razorpayMeUrl,
+          }));
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -263,6 +269,43 @@ export default function AdminSettingsPage() {
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
               />
               <p className="text-[10px] text-slate-400 mt-1">Counter discount ceiling</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Online Payments & Razorpay Link */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+            <CreditCard className="w-5 h-5 text-brand-600" />
+            <h2 className="font-bold text-slate-900">Online Payments & Razorpay Link</h2>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            <div>
+              <label className="text-xs font-bold text-slate-600 mb-1 block">
+                Razorpay.me Payment Page URL
+              </label>
+              <input
+                type="url"
+                value={settings.razorpayMeUrl}
+                onChange={(e) => setSettings({ ...settings, razorpayMeUrl: e.target.value })}
+                placeholder="https://razorpay.me/@ashiyaalharamdrycleaner"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Used automatically on customer digital invoices and WhatsApp payment links (customers enter their shown balance due and Invoice # in the Razorpay.me Comment field).
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-600 space-y-1">
+              <p className="font-bold text-slate-800">Automatic Checkout Mode (.env.local / Vercel Env)</p>
+              <p>
+                To enable the embedded Razorpay popup with automatic Paid verification and webhook updates, set{' '}
+                <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">RAZORPAY_KEY_ID</code>,{' '}
+                <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">RAZORPAY_KEY_SECRET</code>, and{' '}
+                <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">NEXT_PUBLIC_RAZORPAY_KEY_ID</code>{' '}
+                from your Razorpay Dashboard and restart the server.
+              </p>
             </div>
           </div>
         </div>

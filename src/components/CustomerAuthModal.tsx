@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCustomerAuth, CustomerUser } from '@/context/CustomerAuthContext';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import {
   X,
   User,
@@ -34,6 +35,8 @@ interface CustomerAuthModalProps {
 
 export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps) {
   const { isAuthModalOpen, authModalMode, closeAuthModal, setCustomer } = useCustomerAuth();
+
+  useBodyScrollLock(isAuthModalOpen);
 
   const [mode, setMode] = useState<'register' | 'login'>(authModalMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -259,7 +262,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
   return (
     /* Outer Scroll Wrapper to ensure modal is never clipped on any screen height */
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 transition-opacity animate-fade-in"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 transition-opacity animate-fade-in"
       onClick={handleClose}
     >
       <div className="min-h-full flex items-center justify-center py-2 sm:py-6">

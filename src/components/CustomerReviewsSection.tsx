@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import { sanitizePhoneInput } from '@/lib/phone';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import {
   Star,
   ShieldCheck,
@@ -13,8 +14,8 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Quote,
   Lock,
   Settings,
@@ -72,7 +73,12 @@ export default function CustomerReviewsSection() {
   const [averageRating, setAverageRating] = useState<number>(5.0);
   const [totalReviews, setTotalReviews] = useState<number>(3);
   const [loading, setLoading] = useState<boolean>(true);
-  const [showAll, setShowAll] = useState<boolean>(false);
+
+  // Carousel state (active automatically when more than 3 reviews exist)
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [slidesPerView, setSlidesPerView] = useState<number>(3);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const touchStartX = useRef<number | null>(null);
 
   // Write Review Modal state (Creation by signed-in customer only; Admin edits/approves in Admin Dashboard)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -95,6 +101,8 @@ export default function CustomerReviewsSection() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useBodyScrollLock(isModalOpen);
 
   const fetchReviews = useCallback(async () => {
     try {
@@ -216,8 +224,142 @@ export default function CustomerReviewsSection() {
     }
   };
 
-  const visibleReviews = showAll ? reviews : reviews.slice(0, 3);
+  const isCarouselActive = reviews.length > 3;
+  const maxIndex = Math.max(0, reviews.length - slidesPerView);
+
+  // Responsive slides per view for the reviews carousel
+  useEffect(() => {
+    const updateSlidesPerView = () => {
+      if (typeof window === 'undefined') return;
+      if (window.innerWidth >= 1024) {
+        setSlidesPerView(3);
+      } else if (window.innerWidth >= 640) {
+        setSlidesPerView(2);
+      } else {
+        setSlidesPerView(1);
+      }
+    };
+
+    updateSlidesPerView();
+    window.addEventListener('resize', updateSlidesPerView);
+    return () => window.removeEventListener('resize', updateSlidesPerView);
+  }, []);
+
+  // Keep slide index within bounds when viewport or review count changes
+  useEffect(() => {
+    setCurrentIndex((prev) => Math.min(prev, maxIndex));
+  }, [maxIndex]);
+
+  const handlePrevSlide = useCallback(() => {
+    setCurrentIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+  }, [maxIndex]);
+
+  const handleNextSlide = useCallback(() => {
+    setCurrentIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+  }, [maxIndex]);
+
+  // Auto-advance carousel every 3 seconds when more than 3 reviews exist
+  useEffect(() => {
+    if (!isCarouselActive || isPaused || isModalOpen || maxIndex <= 0) return;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [isCarouselActive, isPaused, isModalOpen, maxIndex]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || !isCarouselActive) return;
+    const endX = e.changedTouches[0]?.clientX ?? touchStartX.current;
+    const diff = touchStartX.current - endX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) handleNextSlide();
+      else handlePrevSlide();
+    }
+    touchStartX.current = null;
+  };
+
   const activeStar = hoverRating || rating;
+
+  const renderReviewCard = (rev: CustomerReview, idx: number) => {
+    const avatarStyle = AVATAR_STYLES[idx % AVATAR_STYLES.length];
+    const formattedDate = rev.createdAt
+      ? new Date(rev.createdAt).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '';
+
+    return (
+      <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs hover:shadow-md hover:border-brand-200/80 transition flex flex-col justify-between h-full">
+        <div className="space-y-3">
+          {/* Top Row: Stars & Service Tag */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-0.5 text-amber-400">
+              {[1, 2, 3, 4, 5].map((starNum) => (
+                <Star
+                  key={starNum}
+                  className={`w-3.5 h-3.5 ${
+                    starNum <= rev.rating
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-slate-200'
+                  }`}
+                />
+              ))}
+            </div>
+            {rev.serviceType && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 truncate max-w-[160px]">
+                {rev.serviceType}
+              </span>
+            )}
+          </div>
+
+          {/* Comment */}
+          <div className="relative">
+            <Quote className="w-4 h-4 text-brand-200 mb-1" />
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              &ldquo;{rev.comment}&rdquo;
+            </p>
+          </div>
+        </div>
+
+        {/* Author Footer */}
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarStyle}`}
+            >
+              {getInitials(rev.name)}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                  {rev.name}
+                </h4>
+                {rev.isVerifiedCustomer && (
+                  <span
+                    title="Verified Al-Haram Customer"
+                    className="inline-flex items-center text-emerald-600 shrink-0"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">{rev.role}</p>
+            </div>
+          </div>
+
+          {formattedDate && (
+            <span className="text-[10px] text-slate-400 shrink-0">{formattedDate}</span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section id="reviews" className="py-16 sm:py-20 bg-white border-t border-slate-100">
@@ -313,110 +455,102 @@ export default function CustomerReviewsSection() {
               <span>{customer ? 'Leave First Review' : 'Sign in to Leave Review'}</span>
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {visibleReviews.map((rev, idx) => {
-              const avatarStyle = AVATAR_STYLES[idx % AVATAR_STYLES.length];
-              const formattedDate = rev.createdAt
-                ? new Date(rev.createdAt).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })
-                : '';
-
-              return (
-                <div
-                  key={rev._id}
-                  className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs hover:shadow-md hover:border-brand-200/80 transition flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    {/* Top Row: Stars & Service Tag */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-0.5 text-amber-400">
-                        {[1, 2, 3, 4, 5].map((starNum) => (
-                          <Star
-                            key={starNum}
-                            className={`w-3.5 h-3.5 ${
-                              starNum <= rev.rating
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-200'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      {rev.serviceType && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 truncate max-w-[160px]">
-                          {rev.serviceType}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Comment */}
-                    <div className="relative">
-                      <Quote className="w-4 h-4 text-brand-200 mb-1" />
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                        &ldquo;{rev.comment}&rdquo;
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Author Footer */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarStyle}`}
-                      >
-                        {getInitials(rev.name)}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                            {rev.name}
-                          </h4>
-                          {rev.isVerifiedCustomer && (
-                            <span
-                              title="Verified Al-Haram Customer"
-                              className="inline-flex items-center text-emerald-600 shrink-0"
-                            >
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400 truncate">{rev.role}</p>
-                      </div>
-                    </div>
-
-                    {formattedDate && (
-                      <span className="text-[10px] text-slate-400 shrink-0">{formattedDate}</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Show More / Fewer Toggle */}
-        {reviews.length > 3 && (
-          <div className="flex justify-center pt-2">
-            <button
-              type="button"
-              onClick={() => setShowAll((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition cursor-pointer"
+        ) : isCarouselActive ? (
+          /* Auto-sliding 3-second Carousel with Arrows & Dots when > 3 reviews exist */
+          <div
+            className="space-y-5"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
+            <div
+              className="relative"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
             >
-              {showAll ? (
-                <>
-                  <span>Show Top 3 Reviews</span>
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </>
-              ) : (
-                <>
-                  <span>View All {reviews.length} Reviews</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
+              {/* Left Floating Arrow (Desktop/Tablet) */}
+              <button
+                type="button"
+                onClick={handlePrevSlide}
+                aria-label="Previous customer review"
+                className="hidden md:flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md text-slate-700 hover:text-brand-600 hover:border-brand-300 active:scale-95 transition absolute -left-4 lg:-left-5 top-1/2 -translate-y-1/2 z-10 cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              {/* Sliding Track Viewport */}
+              <div className="overflow-hidden -mx-2 sm:-mx-3 py-1">
+                <div
+                  className="flex transition-transform duration-500 ease-out"
+                  style={{
+                    transform: `translateX(-${currentIndex * (100 / slidesPerView)}%)`,
+                  }}
+                >
+                  {reviews.map((rev, idx) => (
+                    <div
+                      key={rev._id}
+                      style={{ width: `${100 / slidesPerView}%` }}
+                      className="shrink-0 px-2 sm:px-3"
+                    >
+                      {renderReviewCard(rev, idx)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Floating Arrow (Desktop/Tablet) */}
+              <button
+                type="button"
+                onClick={handleNextSlide}
+                aria-label="Next customer review"
+                className="hidden md:flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md text-slate-700 hover:text-brand-600 hover:border-brand-300 active:scale-95 transition absolute -right-4 lg:-right-5 top-1/2 -translate-y-1/2 z-10 cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Bottom Controls: Prev Arrow + Pagination Dots + Next Arrow */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handlePrevSlide}
+                aria-label="Previous review slide"
+                className="p-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-brand-600 shadow-2xs transition cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: maxIndex + 1 }).map((_, dotIdx) => (
+                  <button
+                    key={dotIdx}
+                    type="button"
+                    onClick={() => setCurrentIndex(dotIdx)}
+                    aria-label={`Go to review slide ${dotIdx + 1}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                      dotIdx === currentIndex
+                        ? 'w-6 bg-brand-600'
+                        : 'w-2 bg-slate-300 hover:bg-slate-400'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextSlide}
+                aria-label="Next review slide"
+                className="p-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-brand-600 shadow-2xs transition cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Static 3-Column Grid when 3 or fewer reviews exist */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {reviews.map((rev, idx) => (
+              <div key={rev._id}>{renderReviewCard(rev, idx)}</div>
+            ))}
           </div>
         )}
       </div>
@@ -426,14 +560,14 @@ export default function CustomerReviewsSection() {
         isModalOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-hidden overscroll-none bg-slate-900/60 backdrop-blur-xs"
             role="dialog"
             aria-modal="true"
             aria-labelledby="review-modal-title"
           >
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
               {/* Modal Header */}
-              <div className="bg-linear-to-r from-brand-700 to-brand-600 px-6 py-4 flex items-center justify-between text-white">
+              <div className="bg-linear-to-r from-brand-700 to-brand-600 px-6 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
                   <span className="text-[10px] uppercase tracking-widest font-bold text-brand-100 block">
                     Signed in as {customer?.name}
@@ -453,7 +587,7 @@ export default function CustomerReviewsSection() {
               </div>
 
               {/* Modal Body */}
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
                 {submitStatusMsg ? (
                   <div className="py-8 text-center space-y-3">
                     <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
