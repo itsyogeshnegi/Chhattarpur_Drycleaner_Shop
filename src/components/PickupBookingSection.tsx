@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
+import { calculatePaymentOptions } from '@/lib/paymentPlan';
 import {
   Calendar,
   Clock,
@@ -20,6 +22,7 @@ import {
   ShieldCheck,
   Truck,
   Loader2,
+  CreditCard,
 } from 'lucide-react';
 
 export default function PickupBookingSection() {
@@ -40,6 +43,7 @@ export default function PickupBookingSection() {
     invoiceNumber: string;
     customer: { name: string; phone: string; email?: string; address?: string };
     pickupDate?: string;
+    grandTotal?: number;
   } | null>(null);
   const [error, setError] = useState('');
 
@@ -224,13 +228,36 @@ export default function PickupBookingSection() {
                   </p>
                 </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 inline-block text-left text-xs space-y-1 min-w-[240px]">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 inline-block text-left text-xs space-y-1 min-w-[260px]">
                   <p className="text-[10px] uppercase font-bold text-slate-400">Invoice / Tracking ID</p>
                   <p className="text-lg font-mono font-bold text-brand-600">{bookedOrder.invoiceNumber}</p>
                   <p className="text-[11px] text-slate-600 pt-0.5">📍 {bookedOrder.customer.address}</p>
+                  {(bookedOrder.grandTotal ?? 0) > 0 && (() => {
+                    const opts = calculatePaymentOptions(bookedOrder.grandTotal || 0, 0);
+                    return (
+                      <div className="pt-2 mt-2 border-t border-slate-200 space-y-1">
+                        <p className="text-[11px] font-bold text-slate-800">
+                          Total Estimate: ₹{opts.total}
+                        </p>
+                        <p className="text-[10px] font-semibold text-amber-700">
+                          Mandatory Payment Option: 50% Advance (₹{opts.minHalfAmount}) or Full (₹{opts.total})
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 pt-2">
+                  {(bookedOrder.grandTotal ?? 0) > 0 && (
+                    <Link
+                      href={`/invoice/${bookedOrder.invoiceNumber}`}
+                      className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Pay Now (50% or Full)</span>
+                    </Link>
+                  )}
+
                   <a
                     href={`https://wa.me/918700548416?text=${encodeURIComponent(
                       `Hello Al-Haram Drycleaners! I have booked a pickup for Ref #${bookedOrder.invoiceNumber}. Name: ${bookedOrder.customer.name}.`

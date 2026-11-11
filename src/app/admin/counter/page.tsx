@@ -26,6 +26,7 @@ import { compressImageUnder50KB } from '@/lib/imageCompression';
 import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { calculatePaymentOptions, PaymentPlan } from '@/lib/paymentPlan';
 
 interface RateItem {
   _id: string;
@@ -198,6 +199,7 @@ export default function CounterManagementPage() {
   // Financials
   const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
   const [discountValue, setDiscountValue] = useState<number>(0);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('half');
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
   const [rackLocation, setRackLocation] = useState('');
@@ -381,13 +383,25 @@ export default function CounterManagementPage() {
   }
 
   const grandTotal = Math.max(0, subtotal - discountAmount);
+  const { minHalfAmount } = calculatePaymentOptions(grandTotal);
   const balanceAmount = Math.max(0, grandTotal - paidAmount);
+
+  useEffect(() => {
+    setPaidAmount(paymentPlan === 'full' ? grandTotal : minHalfAmount);
+  }, [grandTotal, minHalfAmount, paymentPlan]);
 
   // Submit Order from Counter
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) {
       alert('Please add at least one garment to the order');
+      return;
+    }
+
+    if (grandTotal > 0 && paidAmount < minHalfAmount) {
+      setError(
+        `Mandatory payment required: collect at least 50% advance (₹${minHalfAmount}) or Full Payment (₹${grandTotal}).`
+      );
       return;
     }
 
@@ -428,6 +442,7 @@ export default function CounterManagementPage() {
     setItems([]);
     setDiscountType('none');
     setDiscountValue(0);
+    setPaymentPlan('half');
     setPaidAmount(0);
     setRackLocation('');
     setInternalNotes('');
@@ -1014,19 +1029,60 @@ export default function CounterManagementPage() {
               <span className="font-black text-xl text-brand-700">₹{grandTotal}/-</span>
             </div>
 
+            {/* Payment Option (Mandatory 50% Advance or Full 100%) */}
+            {grandTotal > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <span className="block text-[10px] font-bold text-slate-500 uppercase">
+                  Payment Option (1 Mandatory)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentPlan('half');
+                      setPaidAmount(minHalfAmount);
+                    }}
+                    className={`py-2 px-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      paymentPlan === 'half'
+                        ? 'bg-amber-50 border-amber-400 text-amber-900 ring-1 ring-amber-400'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <p className="text-[10px] font-extrabold uppercase">50% Mandatory</p>
+                    <p className="text-xs font-black">₹{minHalfAmount}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentPlan('full');
+                      setPaidAmount(grandTotal);
+                    }}
+                    className={`py-2 px-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      paymentPlan === 'full'
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-900 ring-1 ring-emerald-400'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <p className="text-[10px] font-extrabold uppercase">Full Payment</p>
+                    <p className="text-xs font-black">₹{grandTotal}</p>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Advance payment collection */}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                  Paid Advance (₹)
+                  Paid Amount (Min ₹{minHalfAmount})
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min={minHalfAmount}
                   max={grandTotal}
                   value={paidAmount || ''}
                   onChange={(e) => setPaidAmount(Number(e.target.value) || 0)}
-                  placeholder="₹ 0"
+                  placeholder={`₹ ${minHalfAmount}`}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
                 />
               </div>

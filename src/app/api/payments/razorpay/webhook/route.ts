@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
-import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
+import {
+  applyRazorpaySettlement,
+  verifyRazorpayWebhookSignature,
+} from '@/lib/razorpay';
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,13 +45,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Matching invoice not found' }, { status: 404 });
     }
 
-    if (invoice.paymentStatus !== 'paid') {
-      invoice.paymentStatus = 'paid';
-      invoice.paidAmount = invoice.grandTotal;
-      invoice.balanceAmount = 0;
-      invoice.paymentMethod = 'online_razorpay';
-      if (razorpayOrderId) invoice.razorpayOrderId = razorpayOrderId;
-      if (razorpayPaymentId) invoice.razorpayPaymentId = razorpayPaymentId;
+    const amountInPaise = Number(paymentEntity?.amount ?? orderEntity?.amount) || 0;
+    const settled = applyRazorpaySettlement(invoice, {
+      amountInPaise:
+        amountInPaise > 0 ? amountInPaise : Math.round((invoice.balanceAmount || invoice.grandTotal) * 100),
+      razorpayOrderId: razorpayOrderId ? String(razorpayOrderId) : undefined,
+      razorpayPaymentId: razorpayPaymentId ? String(razorpayPaymentId) : undefined,
+    });
+
+    if (!settled.duplicate && invoice.isModified()) {
       await invoice.save();
     }
 

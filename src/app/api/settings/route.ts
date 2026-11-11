@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { ShopSettings } from '@/models/ShopSettings';
 import { getCurrentUser } from '@/lib/auth';
+import { isRazorpayConfigured } from '@/lib/razorpay';
 
 export async function GET() {
   try {
@@ -13,7 +14,11 @@ export async function GET() {
       settings = JSON.parse(JSON.stringify(created));
     }
 
-    return NextResponse.json({ success: true, settings });
+    return NextResponse.json({
+      success: true,
+      settings,
+      checkoutEnabled: isRazorpayConfigured(),
+    });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });

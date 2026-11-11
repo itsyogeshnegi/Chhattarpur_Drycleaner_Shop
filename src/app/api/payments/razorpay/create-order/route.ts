@@ -7,13 +7,25 @@ import {
   getRazorpayClient,
   isRazorpayConfigured,
 } from '@/lib/razorpay';
+import {
+  calculatePaymentOptions,
+  PaymentPlan,
+  resolvePlanPayableAmount,
+} from '@/lib/paymentPlan';
 import mongoose from 'mongoose';
 
 export async function POST(req: NextRequest) {
   try {
-    const { invoiceId } = await req.json();
+    const { invoiceId, paymentPlan = 'full' } = await req.json();
     if (!invoiceId) {
       return NextResponse.json({ success: false, message: 'Invoice ID required' }, { status: 400 });
+    }
+
+    if (paymentPlan !== 'half' && paymentPlan !== 'full') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid payment plan. Choose 50% advance or full payment.' },
+        { status: 400 }
+      );
     }
 
     await connectToDatabase();
@@ -37,15 +49,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payableAmount = invoice.balanceAmount > 0 ? invoice.balanceAmount : invoice.grandTotal;
-    if (payableAmount <= 0) {
+    const opts = calculatePaymentOptions(invoice.grandTotal, invoice.paidAmount);
+    if (opts.remaining <= 0) {
       return NextResponse.json(
         { success: false, message: 'No balance amount due on this invoice' },
         { status: 400 }
       );
     }
 
+    if (paymentPlan === 'half' && opts.alreadyPaid > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Advance payment is already received. Please settle the remaining balance.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const { amount: payableAmount, effectivePlan } = resolvePlanPayableAmount(
+      invoice.grandTotal,
+      invoice.paidAmount,
+      paymentPlan as PaymentPlan
+    );
     const amountInPaise = Math.round(payableAmount * 100);
+    const remainingAfterPayment = Math.max(0, opts.remaining - payableAmount);
     const razorpayMePayUrl = buildRazorpayMePayUrl(settings?.razorpayMeUrl);
 
     // Mode 1: Real Razorpay Standard Checkout when API keys are configured
@@ -54,11 +82,13 @@ export async function POST(req: NextRequest) {
       const razorpayOrder = await razorpay.orders.create({
         amount: amountInPaise,
         currency: 'INR',
-        receipt: invoice.invoiceNumber,
+        receipt: `${invoice.invoiceNumber}-${effectivePlan}`,
         notes: {
           customerName: invoice.customer.name,
           customerPhone: invoice.customer.phone,
           invoiceNumber: invoice.invoiceNumber,
+          paymentPlan: effectivePlan,
+          payableAmount: String(payableAmount),
         },
       });
 
@@ -68,9 +98,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: 'checkout',
+        paymentPlan: effectivePlan,
         orderId: razorpayOrder.id,
         amount: razorpayOrder.amount,
         payableAmount,
+        remainingAfterPayment,
         currency: razorpayOrder.currency,
         key: process.env.RAZORPAY_KEY_ID,
         customer: invoice.customer,
@@ -82,7 +114,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       mode: 'payment_link',
+      paymentPlan: effectivePlan,
       payableAmount,
+      remainingAfterPayment,
       amount: amountInPaise,
       currency: 'INR',
       razorpayMeUrl: razorpayMePayUrl,

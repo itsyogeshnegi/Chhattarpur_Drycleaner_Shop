@@ -78,3 +78,43 @@ export function verifyRazorpayWebhookSignature(
   if (expBuf.length !== sigBuf.length) return false;
   return crypto.timingSafeEqual(expBuf, sigBuf);
 }
+
+export interface SettleableInvoice {
+  grandTotal: number;
+  paidAmount: number;
+  balanceAmount: number;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+  paymentMethod: 'cash' | 'upi' | 'card' | 'online_razorpay';
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+}
+
+/**
+ * Applies a verified Razorpay capture idempotently, updating paidAmount,
+ * remaining balanceAmount, and partial/paid status accurately for 50% or 100% payments.
+ */
+export function applyRazorpaySettlement(
+  invoice: SettleableInvoice,
+  params: {
+    amountInPaise: number;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
+  }
+): { duplicate: boolean; settledNowInr: number } {
+  if (params.razorpayPaymentId && invoice.razorpayPaymentId === params.razorpayPaymentId) {
+    return { duplicate: true, settledNowInr: 0 };
+  }
+
+  const paidNowInr = Math.max(0, Math.round((Number(params.amountInPaise) || 0) / 100));
+  const nextPaid = Math.min(invoice.grandTotal, (invoice.paidAmount || 0) + paidNowInr);
+  const nextBalance = Math.max(0, invoice.grandTotal - nextPaid);
+
+  invoice.paidAmount = nextPaid;
+  invoice.balanceAmount = nextBalance;
+  invoice.paymentStatus = nextBalance === 0 ? 'paid' : nextPaid > 0 ? 'partial' : 'unpaid';
+  invoice.paymentMethod = 'online_razorpay';
+  if (params.razorpayOrderId) invoice.razorpayOrderId = params.razorpayOrderId;
+  if (params.razorpayPaymentId) invoice.razorpayPaymentId = params.razorpayPaymentId;
+
+  return { duplicate: false, settledNowInr: paidNowInr };
+}

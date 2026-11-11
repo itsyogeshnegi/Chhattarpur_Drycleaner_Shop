@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -19,12 +19,18 @@ import {
   ExternalLink,
   Copy,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import {
   buildRazorpayMeUrl,
   DEFAULT_RAZORPAY_ME_URL,
   generateWhatsAppInvoiceUrl,
 } from '@/lib/whatsapp';
+import {
+  calculatePaymentOptions,
+  PaymentPlan,
+  resolvePlanPayableAmount,
+} from '@/lib/paymentPlan';
 
 interface RazorpayPaymentResponse {
   razorpay_payment_id: string;
@@ -132,25 +138,34 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const [invoice, setInvoice] = useState<OrderInvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('half');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [razorpayMeBaseUrl, setRazorpayMeBaseUrl] = useState(DEFAULT_RAZORPAY_ME_URL);
+  const [serverCheckoutEnabled, setServerCheckoutEnabled] = useState(false);
   const [razorpayMeOpened, setRazorpayMeOpened] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [copiedField, setCopiedField] = useState<'amount' | 'ref' | null>(null);
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function fetchInvoice() {
+  const fetchInvoice = useCallback(
+    async (silent = false) => {
+      if (silent) setRefreshingStatus(true);
       try {
         const [orderRes, settingsRes] = await Promise.all([
-          fetch(`/api/orders/${invoiceId}`),
-          fetch('/api/settings').catch(() => null),
+          fetch(`/api/orders/${invoiceId}`, { cache: 'no-store' }),
+          silent ? Promise.resolve(null) : fetch('/api/settings').catch(() => null),
         ]);
         const data = await orderRes.json();
         if (data.success && data.order) {
           setInvoice(data.order);
-        } else {
+          if (silent && data.order.paymentStatus === 'paid') {
+            setPaymentSuccess(true);
+            setRazorpayMeOpened(null);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else if (!silent) {
           setError(data.message || 'Invoice not found');
         }
 
@@ -159,15 +174,40 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           if (settingsData?.success && settingsData.settings?.razorpayMeUrl) {
             setRazorpayMeBaseUrl(settingsData.settings.razorpayMeUrl);
           }
+          if (typeof settingsData?.checkoutEnabled === 'boolean') {
+            setServerCheckoutEnabled(settingsData.checkoutEnabled);
+          }
         }
       } catch {
-        setError('Failed to load invoice');
+        if (!silent) setError('Failed to load invoice');
       } finally {
         setLoading(false);
+        setRefreshingStatus(false);
       }
-    }
-    fetchInvoice();
-  }, [invoiceId]);
+    },
+    [invoiceId]
+  );
+
+  useEffect(() => {
+    fetchInvoice(false);
+  }, [fetchInvoice]);
+
+  useEffect(() => {
+    if (!razorpayMeOpened) return;
+
+    const handleReturnRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        fetchInvoice(true);
+      }
+    };
+
+    window.addEventListener('focus', handleReturnRefresh);
+    document.addEventListener('visibilitychange', handleReturnRefresh);
+    return () => {
+      window.removeEventListener('focus', handleReturnRefresh);
+      document.removeEventListener('visibilitychange', handleReturnRefresh);
+    };
+  }, [razorpayMeOpened, fetchInvoice]);
 
   const handlePrint = () => {
     window.print();
@@ -189,12 +229,21 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     setPaymentError('');
     setPopupBlocked(false);
 
+    const { effectivePlan } = resolvePlanPayableAmount(
+      invoice.grandTotal,
+      invoice.paidAmount,
+      paymentPlan
+    );
+
     try {
       // 1. Create order or payment link on server
       const res = await fetch('/api/payments/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId: invoice.invoiceNumber }),
+        body: JSON.stringify({
+          invoiceId: invoice.invoiceNumber,
+          paymentPlan: effectivePlan,
+        }),
       });
       const orderData = await res.json();
 
@@ -224,17 +273,23 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         return;
       }
 
+      const rawPhoneDigits = (invoice.customer.phone || '').replace(/[^0-9]/g, '');
+      const formattedContact =
+        rawPhoneDigits.length >= 10 ? `+91${rawPhoneDigits.slice(-10)}` : invoice.customer.phone;
+
       const rzp = new window.Razorpay({
         key: orderData.key,
         amount: orderData.amount,
         currency: orderData.currency || 'INR',
         name: "AL-HARAM Drycleaner's",
-        description: `Invoice #${invoice.invoiceNumber}`,
+        description: `Invoice #${invoice.invoiceNumber} (${
+          effectivePlan === 'half' ? '50% Mandatory Advance' : 'Full Payment'
+        })`,
         order_id: orderData.orderId,
         prefill: {
           name: invoice.customer.name,
           email: invoice.customer.email || '',
-          contact: invoice.customer.phone,
+          contact: formattedContact,
         },
         notes: {
           invoiceNumber: invoice.invoiceNumber,
@@ -260,6 +315,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
               setInvoice(verifyData.invoice);
               setPaymentSuccess(true);
               setRazorpayMeOpened(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
               setPaymentError(
                 verifyData.message || 'Payment verification failed. Please contact support.'
@@ -319,17 +375,19 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const payableAmount =
-    invoice.paymentStatus === 'paid'
-      ? 0
-      : invoice.balanceAmount > 0
-      ? invoice.balanceAmount
-      : invoice.grandTotal;
-  const directRazorpayMeUrl = buildRazorpayMeUrl(razorpayMeBaseUrl);
-  const isCheckoutKeyConfigured = Boolean(
-    process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
-      !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.includes('placeholder')
+  const paymentOptions = calculatePaymentOptions(invoice.grandTotal, invoice.paidAmount);
+  const { amount: payableAmount, effectivePlan } = resolvePlanPayableAmount(
+    invoice.grandTotal,
+    invoice.paidAmount,
+    paymentPlan
   );
+  const directRazorpayMeUrl = buildRazorpayMeUrl(razorpayMeBaseUrl);
+  const isCheckoutKeyConfigured =
+    serverCheckoutEnabled ||
+    Boolean(
+      process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
+        !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.includes('placeholder')
+    );
   const whatsappConfirmUrl = `https://wa.me/918700548416?text=${encodeURIComponent(
     `Hello AL-HARAM Drycleaner's, I have completed payment of ₹${payableAmount} via Razorpay.me for Invoice #${invoice.invoiceNumber} (${invoice.customer.name}). Please verify and mark my bill Paid.`
   )}`;
@@ -397,8 +455,16 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           <div className="no-print bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-2xl flex items-center gap-3 text-sm">
             <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
-              <p className="font-bold">Payment Settled Successfully!</p>
-              <p className="text-xs text-emerald-700">Your transaction has been confirmed and invoice marked as PAID.</p>
+              <p className="font-bold">
+                {invoice.paymentStatus === 'paid'
+                  ? 'Full Payment Settled Successfully!'
+                  : `50% Advance Payment Confirmed (₹${invoice.paidAmount})!`}
+              </p>
+              <p className="text-xs text-emerald-700">
+                {invoice.paymentStatus === 'paid'
+                  ? 'Your transaction has been confirmed and your invoice is marked as PAID.'
+                  : `Advance received via Razorpay. Remaining balance of ₹${invoice.balanceAmount} is due upon delivery (or payable below anytime).`}
+              </p>
             </div>
           </div>
         )}
@@ -710,46 +776,145 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                       className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg transition"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      Send Payment Screenshot on WhatsApp
+                      Send Payment ID / Screenshot on WhatsApp
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => fetchInvoice(true)}
+                      disabled={refreshingStatus}
+                      className="inline-flex items-center gap-1.5 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 font-bold px-3.5 py-2 rounded-lg transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
+                      {refreshingStatus ? 'Checking...' : 'Refresh Payment Status'}
+                    </button>
                   </div>
                 </div>
               )}
 
-              <div className="bg-gradient-to-r from-brand-900 to-slate-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
-                <div className="space-y-1 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <CreditCard className="w-5 h-5 text-amber-400" />
-                    <span className="font-extrabold text-base">Pay Online Securely via Razorpay</span>
+              <div className="bg-gradient-to-br from-brand-900 via-slate-900 to-slate-950 text-white p-6 rounded-2xl space-y-5 shadow-lg">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-amber-400" />
+                      <span className="font-extrabold text-base">
+                        {paymentOptions.canChooseHalf
+                          ? 'Choose Payment Option (1 Option Mandatory)'
+                          : 'Pay Remaining Invoice Balance via Razorpay'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      {paymentOptions.canChooseHalf
+                        ? `Select either 50% Mandatory Advance (₹${paymentOptions.minHalfAmount}) or Full Payment (₹${paymentOptions.remaining}) to confirm your order.`
+                        : `Advance of ₹${paymentOptions.alreadyPaid} already received — pay remaining ₹${paymentOptions.remaining} via UPI, Cards, or Net Banking.`}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-300">
-                    Pay ₹{payableAmount} (Ref: <span className="font-mono font-bold text-amber-300">{invoice.invoiceNumber}</span>) using UPI (Google Pay, PhonePe, Paytm), Cards, or Net Banking.
-                  </p>
+                  <span className="text-[11px] font-mono font-bold text-amber-300 bg-white/10 px-2.5 py-1 rounded-lg border border-white/15">
+                    Bill: ₹{invoice.grandTotal}
+                  </span>
                 </div>
 
-                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <button
-                    onClick={handleRazorpayPayment}
-                    disabled={paying}
-                    className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
-                  >
-                    {paying ? 'Connecting Razorpay...' : `Pay ₹${payableAmount} via Razorpay`}
-                  </button>
-                  {!isCheckoutKeyConfigured && (
-                    <a
-                      href={directRazorpayMeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        setPopupBlocked(false);
-                        setRazorpayMeOpened(directRazorpayMeUrl);
-                      }}
-                      className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/25 font-bold py-3 px-4 rounded-xl transition text-xs flex items-center justify-center gap-1.5 whitespace-nowrap"
+                {paymentOptions.canChooseHalf && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPlan('half')}
+                      className={`text-left p-4 rounded-xl border transition cursor-pointer ${
+                        paymentPlan === 'half'
+                          ? 'bg-amber-400/15 border-amber-400 ring-2 ring-amber-400/40'
+                          : 'bg-white/5 border-white/15 hover:bg-white/10'
+                      }`}
                     >
-                      <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-                      Razorpay.me
-                    </a>
-                  )}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
+                          Option 1 • Mandatory Min
+                        </span>
+                        <span
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            paymentPlan === 'half' ? 'border-amber-400 bg-amber-400' : 'border-slate-400'
+                          }`}
+                        >
+                          {paymentPlan === 'half' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                        </span>
+                      </div>
+                      <p className="text-base font-black text-white mt-1">
+                        50% Payment — ₹{paymentOptions.minHalfAmount}
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        Pay ₹{paymentOptions.minHalfAmount} now; ₹{paymentOptions.remainingAfterHalf} due on delivery
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPlan('full')}
+                      className={`text-left p-4 rounded-xl border transition cursor-pointer ${
+                        paymentPlan === 'full'
+                          ? 'bg-emerald-400/15 border-emerald-400 ring-2 ring-emerald-400/40'
+                          : 'bg-white/5 border-white/15 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                          Option 2 • Complete Bill
+                        </span>
+                        <span
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            paymentPlan === 'full' ? 'border-emerald-400 bg-emerald-400' : 'border-slate-400'
+                          }`}
+                        >
+                          {paymentPlan === 'full' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                        </span>
+                      </div>
+                      <p className="text-base font-black text-white mt-1">
+                        Full Payment — ₹{paymentOptions.remaining}
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        100% settled now • ₹0 balance on delivery
+                      </p>
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-1">
+                  <p className="text-xs text-slate-300 text-center sm:text-left">
+                    Paying now:{' '}
+                    <span className="font-black text-white">₹{payableAmount}</span>{' '}
+                    ({effectivePlan === 'half' ? '50% Advance' : paymentOptions.alreadyPaid > 0 ? 'Remaining Balance' : 'Full 100%'}) • Ref:{' '}
+                    <span className="font-mono font-bold text-amber-300">{invoice.invoiceNumber}</span>
+                  </p>
+
+                  <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <button
+                      onClick={handleRazorpayPayment}
+                      disabled={paying}
+                      className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+                    >
+                      {paying
+                        ? 'Connecting Razorpay...'
+                        : `Pay ₹${payableAmount} (${
+                            effectivePlan === 'half'
+                              ? '50% Advance'
+                              : paymentOptions.alreadyPaid > 0
+                              ? 'Remaining Balance'
+                              : 'Full Payment'
+                          }) via Razorpay`}
+                    </button>
+                    {!isCheckoutKeyConfigured && (
+                      <a
+                        href={directRazorpayMeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          setPopupBlocked(false);
+                          setRazorpayMeOpened(directRazorpayMeUrl);
+                        }}
+                        className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/25 font-bold py-3 px-4 rounded-xl transition text-xs flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+                        Razorpay.me
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
