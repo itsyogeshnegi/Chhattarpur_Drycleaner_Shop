@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeIndianPhone } from '@/lib/phone';
 import { connectToDatabase } from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
@@ -31,8 +32,7 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
 
     const cleanInput = String(identifier).trim().toLowerCase();
-    const cleanDigits = identifier.replace(/\D/g, '');
-    const cleanPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+    const cleanPhone = normalizeIndianPhone(identifier);
 
     // Find customer by phone, email, or userId
     const user = await User.findOne({

@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
 import { ShopSettings } from '@/models/ShopSettings';
 import { getCurrentUser } from '@/lib/auth';
+import { normalizeIndianPhone } from '@/lib/phone';
 
 export async function POST(req: NextRequest) {
   try {
@@ -96,11 +97,13 @@ export async function POST(req: NextRequest) {
     const sequenceNumber = String(countToday + 1).padStart(3, '0');
     const invoiceNumber = `${prefix}-${currentYear}-${sequenceNumber}${randomSuffix.toString().slice(-2)}`;
 
+    const cleanPhone = normalizeIndianPhone(customer.phone);
+
     const newOrder = await OrderInvoice.create({
       invoiceNumber,
       customer: {
         name: customer.name.trim(),
-        phone: customer.phone.trim(),
+        phone: cleanPhone || customer.phone.trim(),
         email: customer.email?.trim() || '',
         address: customer.address?.trim() || '',
       },

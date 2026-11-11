@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
+import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 import {
   Calendar,
   Clock,
@@ -109,7 +110,9 @@ export default function PickupBookingSection() {
         body: JSON.stringify({
           customer: {
             name: formData.name.trim(),
-            phone: formData.phone.trim(),
+            phone: formData.phone.includes('@')
+              ? formData.phone.trim()
+              : normalizeIndianPhone(formData.phone) || formData.phone.trim(),
             email: customer.email || '',
             address: formData.address.trim(),
           },
@@ -279,9 +282,13 @@ export default function PickupBookingSection() {
                     <input
                       type="tel"
                       required
-                      placeholder="Enter your phone or email"
+                      placeholder="Enter 10-digit mobile number"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const cleaned = /[a-zA-Z@]/.test(val) ? val : sanitizePhoneInput(val);
+                        setFormData({ ...formData, phone: cleaned });
+                      }}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
                     />
                   </div>

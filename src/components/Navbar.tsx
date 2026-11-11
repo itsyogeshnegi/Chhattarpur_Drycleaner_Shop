@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
-import { Menu, X, Phone, LogOut, User, Layers, ArrowRight } from 'lucide-react';
+import { Menu, X, LogOut, Layers, LogIn, UserPlus, Search } from 'lucide-react';
 import CustomerHistoryModal from '@/components/CustomerHistoryModal';
 
 export default function Navbar() {
-  const { customer, logout } = useCustomerAuth();
+  const { customer, openAuthModal, logout } = useCustomerAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
@@ -31,7 +31,7 @@ export default function Navbar() {
           </Link>
 
           {/* Center Navigation Links matching reference: Home, Services, Pricing, How It Works, Contact */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-700">
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-slate-700">
             <Link
               href="/"
               className="text-brand-600 font-bold transition hover:text-brand-700"
@@ -64,15 +64,15 @@ export default function Navbar() {
             </Link>
           </nav>
 
-          {/* Right Action Items matching reference: Track Order + Book Now */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Right Action Items: Track Order + Sign In / Sign Up + Book Now */}
+          <div className="hidden md:flex items-center gap-2.5 shrink-0">
             {/* Customer Account & Order History Pill */}
             {customer ? (
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setHistoryModalOpen(true)}
-                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full pl-1.5 pr-3 py-1.5 text-xs transition shadow-2xs group"
+                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full pl-1.5 pr-3 py-1.5 text-xs transition shadow-2xs group cursor-pointer"
                   title="View Customer Profile & Track Orders"
                 >
                   <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[11px] shadow-xs group-hover:scale-105 transition-transform">
@@ -88,29 +88,50 @@ export default function Navbar() {
                   </div>
                 </button>
                 <button
+                  type="button"
                   onClick={logout}
                   title="Sign Out"
-                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-full hover:bg-slate-100 transition"
+                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
                   aria-label="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setHistoryModalOpen(true)}
-                className="text-xs sm:text-sm font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 px-4 py-2 rounded-xl transition shadow-2xs"
-                title="Track Order & Sign In"
-              >
-                Track Order
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setHistoryModalOpen(true)}
+                  className="text-xs sm:text-sm font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-2 rounded-xl transition shadow-2xs whitespace-nowrap cursor-pointer"
+                  title="Track Order by Invoice or Mobile"
+                >
+                  Track Order
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login')}
+                  className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-brand-600 bg-white hover:bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl transition shadow-2xs inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('register')}
+                  className="text-xs sm:text-sm font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Sign Up</span>
+                </button>
+              </>
             )}
 
             {/* Primary Action Button: solid vibrant royal blue "Book Now" */}
             <a
               href="#book-pickup"
-              className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-xl transition shadow-xs flex items-center gap-1.5"
+              className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white text-xs sm:text-sm font-semibold px-4 sm:px-5 py-2 rounded-xl transition shadow-xs flex items-center gap-1.5 whitespace-nowrap"
             >
               <span>Book Now</span>
             </a>
@@ -118,6 +139,15 @@ export default function Navbar() {
 
           {/* Mobile Right Controls */}
           <div className="flex md:hidden items-center gap-2">
+            {!customer && (
+              <button
+                type="button"
+                onClick={() => openAuthModal('login')}
+                className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition cursor-pointer"
+              >
+                Sign In
+              </button>
+            )}
             <a
               href="#book-pickup"
               className="bg-brand-600 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-sm"
@@ -182,34 +212,74 @@ export default function Navbar() {
           </Link>
 
           {/* Account inside mobile menu */}
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
             {customer ? (
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                <div>
-                  <p className="font-extrabold text-slate-900">{customer.name}</p>
-                  <p className="text-slate-500">{customer.phone}</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <p className="font-extrabold text-slate-900">{customer.name}</p>
+                    <p className="text-slate-500">{customer.phone}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setHistoryModalOpen(true);
+                    }}
+                    className="bg-brand-600 text-white font-bold px-3 py-1.5 rounded-lg cursor-pointer"
+                  >
+                    My Orders
+                  </button>
                 </div>
                 <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full text-center bg-red-50 hover:bg-red-100 text-red-700 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openAuthModal('login');
+                    }}
+                    className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Sign In</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openAuthModal('register');
+                    }}
+                    className="flex items-center justify-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Sign Up</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     setHistoryModalOpen(true);
                   }}
-                  className="bg-brand-600 text-white font-bold px-3 py-1.5 rounded-lg"
+                  className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
                 >
-                  My Orders
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Track Order</span>
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setHistoryModalOpen(true);
-                }}
-                className="w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-lg text-xs transition"
-              >
-                Sign In / Track Past Orders
-              </button>
+              </>
             )}
           </div>
         </div>

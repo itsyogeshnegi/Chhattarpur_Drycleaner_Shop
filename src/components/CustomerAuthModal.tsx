@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCustomerAuth, CustomerUser } from '@/context/CustomerAuthContext';
+import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 import {
   X,
   User,
@@ -135,7 +136,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
       return;
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanPhone = normalizeIndianPhone(phone);
     if (cleanPhone.length < 10) {
       setError('Please enter a valid 10-digit mobile number.');
       return;
@@ -378,10 +379,10 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                       <input
                         type="tel"
                         required
-                        maxLength={14}
-                        placeholder="98765 43210"
+                        maxLength={10}
+                        placeholder="9876543210"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                         className="w-full pl-14 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-medium"
                       />
                     </div>

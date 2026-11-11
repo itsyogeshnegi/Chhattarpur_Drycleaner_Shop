@@ -85,9 +85,12 @@ export function generateWhatsAppReadyAlertUrl(payload: {
   itemsCount: number;
   itemsSummary?: string;
   invoiceUrl?: string;
-  deliveryOtp?: string;
+  trackUrl?: string;
 }): string {
-  let cleanPhone = payload.customerPhone.replace(/[^0-9]/g, '');
+  let cleanPhone = payload.customerPhone.replace(/[^0-9]/g, '').replace(/^0+/, '');
+  if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) {
+    cleanPhone = cleanPhone.slice(-10);
+  }
   if (cleanPhone.length === 10) {
     cleanPhone = `91${cleanPhone}`;
   }
@@ -107,10 +110,7 @@ export function generateWhatsAppReadyAlertUrl(payload: {
     statusMessage = `Your dry cleaning order *#${payload.invoiceNumber}* has been successfully delivered. Thank you for choosing Al-Haram!`;
   } else if (isOut) {
     alertTitle = '🛵 *OUT FOR DELIVERY - AL-HARAM DRYCLEANERS* 🛵';
-    statusMessage = `Your garments for Invoice *#${payload.invoiceNumber}* are *OUT FOR DELIVERY* and rider is on the way to your doorstep!`;
-    if (payload.deliveryOtp) {
-      statusMessage += `\n\n🔑 *YOUR DELIVERY CONFIRMATION OTP:* *${payload.deliveryOtp}*\n_(Please share this 4-digit OTP with our delivery partner only after receiving your garments.)_`;
-    }
+    statusMessage = `Your garments for Invoice *#${payload.invoiceNumber}* are *OUT FOR DELIVERY* and our rider is on the way to your doorstep!\n\n🔑 *DELIVERY CONFIRMATION OTP:* View your confidential 4-digit OTP on your live tracking page and share it with our delivery partner only after receiving your clothes.${payload.trackUrl ? `\n📍 *Live Track & View OTP:* ${payload.trackUrl}` : ''}`;
   }
 
   const balanceText =

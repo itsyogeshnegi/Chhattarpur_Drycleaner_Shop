@@ -2,6 +2,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import RateCalculator from '@/components/RateCalculator';
 import PickupBookingSection from '@/components/PickupBookingSection';
+import CustomerReviewsSection from '@/components/CustomerReviewsSection';
 import { connectToDatabase } from '@/lib/db';
 import { ServiceItem } from '@/models/ServiceItem';
 import Link from 'next/link';
@@ -385,88 +386,9 @@ export default async function HomePage() {
         <PickupBookingSection />
 
         {/* =========================================================
-            SECTION 7: "Trusted by Our Customers" (Testimonials)
+            SECTION 7: "Trusted by Our Customers" (Live Reviews & Ratings)
            ========================================================= */}
-        <section className="py-16 sm:py-20 bg-white border-t border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-            {/* Header: Tag with dash + Title */}
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-brand-600 flex items-center gap-1.5">
-                <span className="w-5 h-0.5 bg-brand-600 inline-block"></span>
-                Testimonials
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5">
-                Trusted by Our Customers
-              </h2>
-            </div>
-
-            {/* 3 Review Cards in a horizontal row matching reference image */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Testimonial 1 */}
-              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  &ldquo;Excellent dry cleaning quality and on-time delivery. Highly recommended!&rdquo;
-                </p>
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <div className="flex text-amber-400 text-xs gap-0.5">
-                    {'★'.repeat(5)}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      RS
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Rohit Sharma</h4>
-                      <p className="text-[11px] text-slate-400">Event Organizer</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Testimonial 2 */}
-              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  &ldquo;The best dry cleaning service in the city. Great support and fair pricing.&rdquo;
-                </p>
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <div className="flex text-amber-400 text-xs gap-0.5">
-                    {'★'.repeat(5)}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      PM
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Priya Mehta</h4>
-                      <p className="text-[11px] text-slate-400">Small Business Owner</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Testimonial 3 */}
-              <div className="bg-white rounded-xl border border-slate-200/90 p-6 space-y-4 shadow-2xs flex flex-col justify-between">
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  &ldquo;Very professional and reliable. I always send my business suits and blankets here.&rdquo;
-                </p>
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <div className="flex text-amber-400 text-xs gap-0.5">
-                    {'★'.repeat(5)}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      AV
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Aman Verma</h4>
-                      <p className="text-[11px] text-slate-400">Marketing Consultant</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <CustomerReviewsSection />
       </main>
 
       {/* =========================================================

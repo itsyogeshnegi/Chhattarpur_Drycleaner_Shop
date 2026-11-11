@@ -64,11 +64,25 @@ function TrackContent() {
       if (data.success && data.order) {
         setOrder(data.order);
       } else {
-        // Fallback: search by phone number or name
-        const searchRes = await fetch(`/api/orders?search=${encodeURIComponent(q)}&limit=10`);
-        const searchData = await searchRes.json();
+        // Fallback: search by phone number via customer API first (so deliveryOtp is available to customer), then general search
+        const cleanDigits = q.replace(/\D/g, '').replace(/^0+/, '');
+        const cleanPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+        let searchData: { success?: boolean; orders?: OrderData[] } | null = null;
 
-        if (searchData.success && searchData.orders && searchData.orders.length > 0) {
+        if (cleanPhone.length >= 10) {
+          const custRes = await fetch(`/api/customer/orders?phone=${encodeURIComponent(cleanPhone)}`);
+          const custData = await custRes.json();
+          if (custData.success && custData.orders?.length > 0) {
+            searchData = custData;
+          }
+        }
+
+        if (!searchData) {
+          const searchRes = await fetch(`/api/orders?search=${encodeURIComponent(q)}&limit=10`);
+          searchData = await searchRes.json();
+        }
+
+        if (searchData?.success && searchData.orders && searchData.orders.length > 0) {
           if (searchData.orders.length === 1) {
             setOrder(searchData.orders[0]);
           } else {

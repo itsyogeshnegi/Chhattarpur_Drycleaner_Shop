@@ -15,6 +15,7 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  Star,
 } from 'lucide-react';
 
 function AdminNavItems({
@@ -50,6 +51,14 @@ function AdminNavItems({
       icon: Users,
       desc: 'Profiles & 3 quick actions',
       isActive: pathname.startsWith('/admin/customers'),
+    },
+    {
+      name: 'Customer Reviews',
+      shortName: 'Reviews',
+      href: '/admin/reviews',
+      icon: Star,
+      desc: 'Approve, edit & add reviews',
+      isActive: pathname.startsWith('/admin/reviews'),
     },
     {
       name: 'Customisation Hub',

@@ -61,7 +61,6 @@ export async function PATCH(
               {
                 success: false,
                 requiresOtp: true,
-                expectedOtp: order.deliveryOtp,
                 message: 'Delivery OTP is required to confirm this handover.',
               },
               { status: 400 }
@@ -115,10 +114,13 @@ export async function PATCH(
       }
     }
 
+    const safeOrder = order.toObject ? order.toObject() : { ...order };
+    delete (safeOrder as Record<string, unknown>).deliveryOtp;
+
     return NextResponse.json({
       success: true,
       message: `Status updated to ${status}${status === 'delivered' ? ' (Delivery Confirmed)' : ''}`,
-      order,
+      order: { ...safeOrder, hasDeliveryOtp: Boolean(order.deliveryOtp) },
       smsResult,
     });
   } catch (error: unknown) {

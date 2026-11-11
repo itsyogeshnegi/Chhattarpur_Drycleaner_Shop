@@ -28,8 +28,6 @@ interface OrderRecord {
   balanceAmount: number;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   rackLocation?: string;
-  deliveryOtp?: string;
-  deliveryOtpGeneratedAt?: string;
   deliveryVerifiedAt?: string;
   deliveryVerifiedBy?: string;
   deliveredAt?: string;
@@ -114,8 +112,8 @@ function OrdersContent() {
       if (data.success) {
         setFeedbackMessage(
           `Status updated to "${newStatus.replace('_', ' ')}". ${
-            newStatus === 'out_for_delivery' && data.order?.deliveryOtp
-              ? `Delivery OTP generated: ${data.order.deliveryOtp}`
+            newStatus === 'out_for_delivery'
+              ? "Customer's 4-digit Delivery OTP is now active on their tracking page."
               : ''
           }`
         );
@@ -173,6 +171,7 @@ function OrdersContent() {
   const handleTriggerWhatsAppSms = async (ord: OrderRecord) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const invoiceUrl = `${origin}/invoice/${ord.invoiceNumber}`;
+    const trackUrl = `${origin}/track?query=${encodeURIComponent(ord.invoiceNumber)}`;
     const itemsSummary = ord.items.map((i) => `${i.quantity}x ${i.name}`).slice(0, 3).join(', ');
 
     const waUrl = generateWhatsAppReadyAlertUrl({
@@ -185,7 +184,7 @@ function OrdersContent() {
       itemsCount: ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0),
       itemsSummary,
       invoiceUrl,
-      deliveryOtp: ord.deliveryOtp,
+      trackUrl,
     });
 
     // Open WhatsApp in a new tab immediately
@@ -485,10 +484,10 @@ function OrdersContent() {
                               setOtpError('');
                             }}
                             className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-[10px] px-2 py-1 rounded-md flex items-center justify-center gap-1 shadow-2xs transition"
-                            title={`Verify Customer OTP (Expected: ${ord.deliveryOtp || 'Auto'})`}
+                            title="Ask the customer for their 4-digit Delivery OTP to complete handover"
                           >
                             <KeyRound className="w-3 h-3" />
-                            <span>Verify OTP {ord.deliveryOtp ? `(${ord.deliveryOtp})` : ''}</span>
+                            <span>Verify &amp; Deliver</span>
                           </button>
                         )}
 
@@ -678,11 +677,6 @@ function OrdersContent() {
                 <p className="text-[11px] text-slate-400 text-center">
                   Ask the customer to share the 4-digit code shown on their tracking screen.
                 </p>
-                {otpModalOrder.deliveryOtp && (
-                  <p className="text-[10px] text-indigo-600 font-medium text-center bg-indigo-50 py-1 px-2 rounded-lg border border-indigo-100">
-                    System Expected OTP: <strong className="font-mono font-bold">{otpModalOrder.deliveryOtp}</strong>
-                  </p>
-                )}
               </div>
 
               {/* Error Message */}

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { compressImageUnder50KB } from '@/lib/imageCompression';
 import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
+import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 
 interface RateItem {
   _id: string;
@@ -218,7 +219,7 @@ export default function CounterManagementPage() {
         setCustomer((prev) => ({
           ...prev,
           name: name || prev.name,
-          phone: phone || prev.phone,
+          phone: phone ? normalizeIndianPhone(phone) : prev.phone,
           address: address || prev.address,
         }));
       }
@@ -807,9 +808,10 @@ export default function CounterManagementPage() {
               <input
                 type="tel"
                 required
+                maxLength={10}
                 placeholder="Phone (WhatsApp) *"
                 value={customer.phone}
-                onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                onChange={(e) => setCustomer({ ...customer, phone: sanitizePhoneInput(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-hidden"
               />
             </div>

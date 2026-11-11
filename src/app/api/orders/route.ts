@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
 
     const [orders, total] = await Promise.all([
       OrderInvoice.find(query)
+        .select('-deliveryOtp')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
