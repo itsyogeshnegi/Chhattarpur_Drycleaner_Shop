@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase, isDatabaseConnectionError } from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
 import { verifyCaptcha } from '@/lib/captcha';
@@ -96,7 +96,13 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, message: errorMsg }, { status: 500 });
+    console.error('Admin login error:', error);
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { success: false, message: 'Unable to connect to the database right now. Please try again in a moment.' },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ success: false, message: 'Authentication failed. Please try again.' }, { status: 500 });
   }
 }

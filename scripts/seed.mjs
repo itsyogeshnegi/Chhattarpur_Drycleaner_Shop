@@ -1,5 +1,8 @@
+import dns from 'node:dns';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+
+const PUBLIC_DNS_SERVERS = ['8.8.8.8', '1.1.1.1', '8.8.4.4'];
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://alharamdrycleaners2023_db_user:XPcjz9Z1Rnb0M3ia@cluster0.bqskbaa.mongodb.net/alharam_drycleaners?retryWrites=true&w=majority';
 
@@ -68,7 +71,22 @@ const rateListItems = [
 
 async function seed() {
   console.log('Connecting to MongoDB Atlas...');
-  await mongoose.connect(MONGODB_URI);
+  if (MONGODB_URI.startsWith('mongodb+srv://')) {
+    const servers = dns.getServers();
+    if (servers.length === 0 || servers.every((addr) => addr.startsWith('127.') || addr === '::1')) {
+      dns.setServers(PUBLIC_DNS_SERVERS);
+    }
+  }
+  try {
+    await mongoose.connect(MONGODB_URI);
+  } catch (err) {
+    if (err?.syscall === 'querySrv' || String(err?.message || '').includes('querySrv')) {
+      dns.setServers(PUBLIC_DNS_SERVERS);
+      await mongoose.connect(MONGODB_URI);
+    } else {
+      throw err;
+    }
+  }
   console.log('Connected successfully!');
 
   const db = mongoose.connection;

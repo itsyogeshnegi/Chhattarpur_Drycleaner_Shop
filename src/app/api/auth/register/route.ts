@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeIndianPhone } from '@/lib/phone';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase, isDatabaseConnectionError } from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
 import { verifyMathCaptcha } from '@/lib/mathCaptcha';
@@ -141,8 +141,14 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Registration failed';
-    return NextResponse.json({ success: false, message: errorMsg }, { status: 500 });
+    console.error('Customer registration error:', error);
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { success: false, message: 'Unable to connect to the database right now. Please try again in a moment.' },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ success: false, message: 'Registration failed. Please try again.' }, { status: 500 });
   }
 }
 
