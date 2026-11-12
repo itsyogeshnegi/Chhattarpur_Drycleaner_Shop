@@ -99,7 +99,7 @@ export default function PickupBookingSection() {
                 serviceType: it.serviceType || 'dry_clean',
                 rate: Number(it.rate) || 0,
                 quantity: Number(it.quantity) || 1,
-                notes: `${it.serviceType === 'steam_iron' ? 'Steam Press' : 'Dry Clean'} | Slot: ${formData.timeSlot}`,
+                notes: '',
               }));
             }
           }

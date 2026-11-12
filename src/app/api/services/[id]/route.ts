@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import { ServiceItem } from '@/models/ServiceItem';
 import { getCurrentUser } from '@/lib/auth';
+import { CACHE_TAGS, invalidateCacheTag } from '@/lib/cache';
 import mongoose from 'mongoose';
 
 export async function PUT(
@@ -44,6 +46,9 @@ export async function PUT(
       return NextResponse.json({ success: false, message: 'Garment service item not found' }, { status: 404 });
     }
 
+    invalidateCacheTag(CACHE_TAGS.SERVICES);
+    revalidatePath('/');
+
     return NextResponse.json({ success: true, item: updated });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -69,6 +74,8 @@ export async function DELETE(
       : { name: id };
 
     await ServiceItem.findOneAndDelete(query);
+    invalidateCacheTag(CACHE_TAGS.SERVICES);
+    revalidatePath('/');
     return NextResponse.json({ success: true, message: 'Garment service item deleted' });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';

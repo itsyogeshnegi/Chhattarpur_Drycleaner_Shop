@@ -15,6 +15,9 @@ import {
   AlertCircle,
   X,
   CreditCard,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { generateWhatsAppInvoiceUrl, generateWhatsAppReadyAlertUrl } from '@/lib/whatsapp';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
@@ -41,8 +44,11 @@ interface OrderRecord {
 function OrdersContent() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authRequired, setAuthRequired] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [smsSendingId, setSmsSendingId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -77,17 +83,28 @@ function OrdersContent() {
     }));
   };
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (targetPage = page) => {
     setLoading(true);
     try {
       const query = new URLSearchParams();
       if (statusFilter !== 'all') query.set('status', statusFilter);
       if (search) query.set('search', search);
+      query.set('page', String(targetPage));
 
-      const res = await fetch(`/api/orders?${query.toString()}`);
+      const res = await fetch(`/api/orders?${query.toString()}`, { cache: 'no-store' });
+      if (res.status === 401 || res.status === 403) {
+        setAuthRequired(true);
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
       if (data.success && data.orders) {
+        setAuthRequired(false);
         setOrders(data.orders);
+        if (data.pagination) {
+          setPagination(data.pagination);
+        }
       }
     } catch (err) {
       console.error('Failed to load orders:', err);
@@ -97,9 +114,9 @@ function OrdersContent() {
   };
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   // Update Status
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
@@ -130,7 +147,13 @@ function OrdersContent() {
               : ''
           }`
         );
-        fetchOrders();
+        if (data.order) {
+          setOrders((prev) =>
+            statusFilter !== 'all' && data.order.status !== statusFilter
+              ? prev.filter((o) => o._id !== orderId)
+              : prev.map((o) => (o._id === orderId ? { ...o, ...data.order } : o))
+          );
+        }
       } else {
         alert(data.message || 'Status update failed');
       }
@@ -164,12 +187,19 @@ function OrdersContent() {
 
       const data = await res.json();
       if (data.success) {
+        const verifiedOrderId = otpModalOrder._id;
         setFeedbackMessage(
           `🎉 Order ${otpModalOrder.invoiceNumber} delivered & customer handover verified successfully!`
         );
+        if (data.order) {
+          setOrders((prev) =>
+            statusFilter !== 'all' && data.order.status !== statusFilter
+              ? prev.filter((o) => o._id !== verifiedOrderId)
+              : prev.map((o) => (o._id === verifiedOrderId ? { ...o, ...data.order } : o))
+          );
+        }
         setOtpModalOrder(null);
         setEnteredOtp('');
-        fetchOrders();
       } else {
         setOtpError(data.message || 'Invalid Delivery OTP! Please try again.');
       }
@@ -270,6 +300,26 @@ function OrdersContent() {
     { value: 'delivered', label: 'Delivered / Completed' },
   ];
 
+  if (authRequired) {
+    return (
+      <div className="max-w-lg mx-auto mt-16 bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-xs space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h1 className="text-xl font-extrabold text-slate-900">Staff Access Required</h1>
+        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+          Please sign in with Store Staff or Admin credentials to manage orders and delivery stages.
+        </p>
+        <Link
+          href="/admin/login"
+          className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl transition"
+        >
+          Go to Admin Login
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Header - Unified & Professional */}
@@ -287,7 +337,7 @@ function OrdersContent() {
         </div>
 
         <button
-          onClick={fetchOrders}
+          onClick={() => fetchOrders(page)}
           disabled={loading}
           className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shrink-0"
         >
@@ -313,21 +363,41 @@ function OrdersContent() {
 
       {/* Filter and Search Bar - Compact */}
       <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-2.5">
-        <div className="relative grow">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by Invoice #, Mobile Number, or Customer Name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && fetchOrders()}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-brand-500 focus:outline-hidden"
-          />
+        <div className="relative grow flex gap-2">
+          <div className="relative grow">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by Invoice #, Mobile Number, or Customer Name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (page === 1) fetchOrders(1);
+                  else setPage(1);
+                }
+              }}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-brand-500 focus:outline-hidden"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (page === 1) fetchOrders(1);
+              else setPage(1);
+            }}
+            className="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition shrink-0"
+          >
+            Search
+          </button>
         </div>
 
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-hidden"
         >
           {statusOptions.map((opt) => (
@@ -632,6 +702,34 @@ function OrdersContent() {
           </table>
         </div>
       </div>
+
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border border-slate-200 text-xs">
+          <span className="text-slate-500 font-medium">
+            Page {pagination.page} of {pagination.totalPages} ({pagination.total} orders)
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 font-semibold text-slate-700 inline-flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Prev</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={page >= pagination.totalPages || loading}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 font-semibold text-slate-700 inline-flex items-center gap-1"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* OTP Delivery Verification Modal - Teleported to document.body for dead-center positioning */}
       {mounted && otpModalOrder && createPortal(

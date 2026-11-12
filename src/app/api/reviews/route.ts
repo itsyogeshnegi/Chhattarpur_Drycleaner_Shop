@@ -1,75 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import { Review } from '@/models/Review';
 import { OrderInvoice } from '@/models/OrderInvoice';
 import { getCurrentUser } from '@/lib/auth';
 import { normalizeIndianPhone } from '@/lib/phone';
-
-export const dynamic = 'force-dynamic';
-
-const INITIAL_SEED_REVIEWS = [
-  {
-    name: 'Rohit Sharma',
-    role: 'Chattarpur Resident',
-    serviceType: 'Suit & Sherwani Dry Cleaning',
-    rating: 5,
-    comment:
-      'Excellent stain removal on my formal blazers and woollen coats. Returned crisp, fresh, and neatly packaged right on schedule.',
-    isVerifiedCustomer: true,
-    isApproved: true,
-  },
-  {
-    name: 'Priya Mehta',
-    role: 'Regular Customer',
-    serviceType: 'Saree & Ethnic Care',
-    rating: 5,
-    comment:
-      'Super careful with heavy silk sarees and delicate embroidery. Free doorstep pickup and WhatsApp live tracking with OTP delivery makes it effortless.',
-    isVerifiedCustomer: true,
-    isApproved: true,
-  },
-  {
-    name: 'Aman Verma',
-    role: 'Vasant Kunj Enclave',
-    serviceType: 'Steam Ironing & Blankets',
-    rating: 5,
-    comment:
-      'Reliable turnaround every week for office shirts and winter blankets. Transparent digital billing and very courteous doorstep staff.',
-    isVerifiedCustomer: true,
-    isApproved: true,
-  },
-];
+import {
+  CACHE_TAGS,
+  PUBLIC_CACHE_HEADERS,
+  getCachedApprovedReviews,
+  invalidateCacheTag,
+} from '@/lib/cache';
 
 async function getApprovedStats() {
-  const approvedReviews = await Review.find({ isApproved: true })
-    .select('-customerPhone -userId')
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .lean();
-
-  const totalReviews = approvedReviews.length;
-  const averageRating =
-    totalReviews > 0
-      ? Number(
-          (
-            approvedReviews.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) /
-            totalReviews
-          ).toFixed(1)
-        )
-      : 5.0;
-
-  return { reviews: approvedReviews, totalReviews, averageRating };
+  return getCachedApprovedReviews();
 }
 
 export async function GET(req: NextRequest) {
   try {
-    await connectToDatabase();
-
-    const existingCount = await Review.countDocuments();
-    if (existingCount === 0) {
-      await Review.insertMany(INITIAL_SEED_REVIEWS);
-    }
-
     const { searchParams } = new URL(req.url);
     const includeAll = searchParams.get('all') === 'true';
 
@@ -81,6 +29,8 @@ export async function GET(req: NextRequest) {
           { status: session ? 403 : 401 }
         );
       }
+
+      await connectToDatabase();
 
       const allReviews = await Review.find({})
         .select('-customerPhone')
@@ -98,24 +48,30 @@ export async function GET(req: NextRequest) {
             )
           : 5.0;
 
-      return NextResponse.json({
-        success: true,
-        reviews: allReviews,
-        totalReviews: allReviews.length,
-        approvedCount: approvedOnly.length,
-        pendingCount: allReviews.length - approvedOnly.length,
-        averageRating,
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          reviews: allReviews,
+          totalReviews: allReviews.length,
+          approvedCount: approvedOnly.length,
+          pendingCount: allReviews.length - approvedOnly.length,
+          averageRating,
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
     const { reviews, totalReviews, averageRating } = await getApprovedStats();
 
-    return NextResponse.json({
-      success: true,
-      reviews,
-      totalReviews,
-      averageRating,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        reviews,
+        totalReviews,
+        averageRating,
+      },
+      { headers: PUBLIC_CACHE_HEADERS }
+    );
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
@@ -222,6 +178,11 @@ export async function POST(req: NextRequest) {
       isApproved: created.isApproved,
       createdAt: created.createdAt,
     };
+
+    if (approvedStatus) {
+      invalidateCacheTag(CACHE_TAGS.REVIEWS);
+      revalidatePath('/');
+    }
 
     const { totalReviews, averageRating } = await getApprovedStats();
 

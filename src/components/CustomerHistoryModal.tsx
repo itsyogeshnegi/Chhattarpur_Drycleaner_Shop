@@ -77,14 +77,10 @@ export default function CustomerHistoryModal({
   }, [customer]);
 
   useEffect(() => {
-    if (isOpen) {
-      if (customer) {
-        fetchOrders();
-      } else if (searchPhone.trim().length >= 10) {
-        fetchOrders(searchPhone.trim());
-      }
+    if (isOpen && customer) {
+      fetchOrders();
     }
-  }, [isOpen, customer, fetchOrders, searchPhone]);
+  }, [isOpen, customer, fetchOrders]);
 
   if (!isOpen || !mounted) return null;
 

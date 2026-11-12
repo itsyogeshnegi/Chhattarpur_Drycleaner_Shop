@@ -3,8 +3,7 @@ import Footer from '@/components/Footer';
 import RateCalculator from '@/components/RateCalculator';
 import PickupBookingSection from '@/components/PickupBookingSection';
 import CustomerReviewsSection from '@/components/CustomerReviewsSection';
-import { connectToDatabase } from '@/lib/db';
-import { ServiceItem } from '@/models/ServiceItem';
+import { getCachedActiveServices, getCachedApprovedReviews } from '@/lib/cache';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -25,25 +24,19 @@ import {
   Package,
 } from 'lucide-react';
 
-async function getServices() {
-  try {
-    await connectToDatabase();
-    const items = await ServiceItem.find({ isActive: true })
-      .select('name category dryCleanRate steamIronRate rateRangeText unit popular')
-      .sort({ category: 1, popular: -1, name: 1 })
-      .lean();
-
-    return JSON.parse(JSON.stringify(items));
-  } catch (error) {
-    console.error('Failed to load services:', error);
-    return [];
-  }
-}
-
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const services = await getServices();
+  const [services, reviewData] = await Promise.all([
+    getCachedActiveServices().catch((error) => {
+      console.error('Failed to load services:', error);
+      return [];
+    }),
+    getCachedApprovedReviews().catch((error) => {
+      console.error('Failed to load reviews:', error);
+      return null;
+    }),
+  ]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-brand-600 selection:text-white flex flex-col font-sans overflow-x-hidden">
@@ -388,7 +381,11 @@ export default async function HomePage() {
         {/* =========================================================
             SECTION 7: "Trusted by Our Customers" (Live Reviews & Ratings)
            ========================================================= */}
-        <CustomerReviewsSection />
+        <CustomerReviewsSection
+          initialReviews={reviewData?.reviews}
+          initialTotalReviews={reviewData?.totalReviews}
+          initialAverageRating={reviewData?.averageRating}
+        />
       </main>
 
       {/* =========================================================

@@ -52,36 +52,45 @@ export interface IOrderInvoice extends Document {
   updatedAt: Date;
 }
 
+const InspectionImageSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    caption: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+const InvoiceItemSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    serviceType: {
+      type: String,
+      required: true,
+      enum: ['dry_clean', 'steam_iron', 'laundry_piece', 'laundry_kg'],
+      default: 'dry_clean',
+    },
+    rate: { type: Number, required: true },
+    quantity: { type: Number, required: true, default: 1 },
+    total: { type: Number, required: true },
+    notes: { type: String, trim: true },
+    inspectionImages: {
+      type: [InspectionImageSchema],
+      default: undefined,
+    },
+  },
+  { _id: false }
+);
+
 const OrderInvoiceSchema = new Schema<IOrderInvoice>(
   {
-    invoiceNumber: { type: String, required: true, unique: true, index: true },
+    invoiceNumber: { type: String, required: true, unique: true },
     customer: {
       name: { type: String, required: true, trim: true },
-      phone: { type: String, required: true, trim: true, index: true },
+      phone: { type: String, required: true, trim: true },
       email: { type: String, trim: true, lowercase: true },
       address: { type: String, trim: true },
     },
-    items: [
-      {
-        name: { type: String, required: true },
-        serviceType: {
-          type: String,
-          required: true,
-          enum: ['dry_clean', 'steam_iron', 'laundry_piece', 'laundry_kg'],
-          default: 'dry_clean',
-        },
-        rate: { type: Number, required: true },
-        quantity: { type: Number, required: true, default: 1 },
-        total: { type: Number, required: true },
-        notes: { type: String, trim: true },
-        inspectionImages: [
-          {
-            url: { type: String, required: true },
-            caption: { type: String, trim: true },
-          },
-        ],
-      },
-    ],
+    items: [InvoiceItemSchema],
     subtotal: { type: Number, required: true, default: 0 },
     discountType: {
       type: String,
@@ -112,7 +121,6 @@ const OrderInvoiceSchema = new Schema<IOrderInvoice>(
       type: String,
       enum: ['received', 'in_process', 'ready', 'out_for_delivery', 'delivered', 'cancelled'],
       default: 'received',
-      index: true,
     },
     rackLocation: { type: String, trim: true },
     internalNotes: { type: String, trim: true },

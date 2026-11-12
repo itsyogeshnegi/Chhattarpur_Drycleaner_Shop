@@ -5,9 +5,19 @@ import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
 import { verifyMathCaptcha } from '@/lib/mathCaptcha';
 import { signToken } from '@/lib/auth';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`customer-register:${ip}`, 10, 15 * 60_000);
+    if (!limit.allowed) {
+      return rateLimitResponse(
+        'Too many account registration attempts. Please try again later.',
+        limit.retryAfterSeconds
+      );
+    }
+
     const body = await req.json();
     const { name, phone, email, password, captchaAnswer, captchaToken } = body;
 

@@ -66,13 +66,26 @@ function getInitials(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || 'AH';
 }
 
-export default function CustomerReviewsSection() {
-  const { customer, openAuthModal } = useCustomerAuth();
+interface CustomerReviewsSectionProps {
+  initialReviews?: CustomerReview[];
+  initialTotalReviews?: number;
+  initialAverageRating?: number;
+}
 
-  const [reviews, setReviews] = useState<CustomerReview[]>([]);
-  const [averageRating, setAverageRating] = useState<number>(5.0);
-  const [totalReviews, setTotalReviews] = useState<number>(3);
-  const [loading, setLoading] = useState<boolean>(true);
+export default function CustomerReviewsSection({
+  initialReviews,
+  initialTotalReviews,
+  initialAverageRating,
+}: CustomerReviewsSectionProps = {}) {
+  const { customer, openAuthModal } = useCustomerAuth();
+  const hasInitialData = Array.isArray(initialReviews);
+
+  const [reviews, setReviews] = useState<CustomerReview[]>(initialReviews ?? []);
+  const [averageRating, setAverageRating] = useState<number>(initialAverageRating ?? 5.0);
+  const [totalReviews, setTotalReviews] = useState<number>(
+    initialTotalReviews ?? initialReviews?.length ?? 3
+  );
+  const [loading, setLoading] = useState<boolean>(!hasInitialData);
 
   // Carousel state (active automatically when more than 3 reviews exist)
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -121,8 +134,10 @@ export default function CustomerReviewsSection() {
   }, []);
 
   useEffect(() => {
-    fetchReviews();
-  }, [fetchReviews]);
+    if (!hasInitialData) {
+      fetchReviews();
+    }
+  }, [fetchReviews, hasInitialData]);
 
   // Automatically open Write Review modal right after user completes login
   useEffect(() => {

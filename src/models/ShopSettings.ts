@@ -13,8 +13,6 @@ export interface IShopSettings extends Document {
   defaultTaxRate: number;
   maxDiscountPercentage: number;
   termsAndConditions: string[];
-  smsReadyTemplate: string;
-  whatsappInvoiceTemplate: string;
   openingHours: string;
   createdAt: Date;
   updatedAt: Date;
@@ -52,16 +50,6 @@ const ShopSettingsSchema = new Schema<IShopSettings>(
         "Deliveries must be collected within 30 days of the completion date.",
         "Dry cleaning or steam pressing charges apply as per our standard tariff.",
       ],
-    },
-    smsReadyTemplate: {
-      type: String,
-      default:
-        "Dear {customerName}, your garments (Invoice #{invoiceNumber}) are ready for collection at Al Haram Dry Cleaner, Chattarpur. Total: ₹{grandTotal}. Thank you!",
-    },
-    whatsappInvoiceTemplate: {
-      type: String,
-      default:
-        "✨ *AL-HARAM Drycleaner's And Launderettes*\n━━━━━━━━━━━━━━━━━━━━\nDear {customerName},\nThank you for choosing Al Haram Drycleaners!\n\n🧾 *Invoice:* #{invoiceNumber}\n💰 *Total:* ₹{grandTotal}\n📌 *Status:* {status}\n\n🔗 *View & Download Digital Invoice / Garment Photos:*\n{invoiceUrl}\n\n📍 *Address:* A-1/67, Birla Farm Colony, Chattarpur, New Delhi-110074\n📞 *Call:* +91 87005 48416",
     },
     openingHours: {
       type: String,

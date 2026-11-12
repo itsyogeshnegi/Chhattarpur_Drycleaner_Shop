@@ -293,10 +293,30 @@ export default function CounterManagementPage() {
     });
   };
 
+  const cleanupCloudinaryImages = (images?: { url: string; caption?: string }[]) => {
+    if (!images || images.length === 0) return;
+    images.forEach((img) => {
+      if (!img?.url) return;
+      fetch('/api/cloudinary/destroy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: img.url }),
+      }).catch(() => {
+        // Best-effort orphan cleanup; ignore transient errors
+      });
+    });
+  };
+
   const handleUpdateItemQty = (index: number, delta: number) => {
+    const targetItem = items[index];
+    if (targetItem && targetItem.quantity + delta <= 0) {
+      cleanupCloudinaryImages(targetItem.inspectionImages);
+    }
+
     setItems((prev) => {
       const copy = [...prev];
       const cur = copy[index];
+      if (!cur) return prev;
       const newQty = cur.quantity + delta;
 
       if (newQty <= 0) {
@@ -313,7 +333,28 @@ export default function CounterManagementPage() {
   };
 
   const handleRemoveItem = (index: number) => {
+    const targetItem = items[index];
+    if (targetItem?.inspectionImages?.length) {
+      cleanupCloudinaryImages(targetItem.inspectionImages);
+    }
     setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveInspectionImage = (itemIndex: number, imageIndex: number) => {
+    const targetImage = items[itemIndex]?.inspectionImages?.[imageIndex];
+    if (targetImage) {
+      cleanupCloudinaryImages([targetImage]);
+    }
+    setItems((prev) =>
+      prev.map((item, idx) =>
+        idx !== itemIndex
+          ? item
+          : {
+              ...item,
+              inspectionImages: (item.inspectionImages || []).filter((_, i) => i !== imageIndex),
+            }
+      )
+    );
   };
 
   // Garment Inspection Image Upload (< 50KB guarantee)
@@ -328,6 +369,11 @@ export default function CounterManagementPage() {
       // 2. Fetch signed Cloudinary upload params
       const signRes = await fetch('/api/cloudinary/sign');
       const signData = await signRes.json();
+
+      if (signRes.status === 401 || signRes.status === 403) {
+        alert('Please sign in with Store Staff or Admin credentials to attach garment photos.');
+        return;
+      }
 
       if (!signData.success) {
         alert('Could not authenticate Cloudinary signature.');
@@ -934,9 +980,24 @@ export default function CounterManagementPage() {
                         </label>
 
                         {item.inspectionImages && item.inspectionImages.length > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                            {item.inspectionImages.length} tag photo attached
-                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {item.inspectionImages.map((_, imgIdx) => (
+                              <span
+                                key={imgIdx}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded"
+                              >
+                                Photo #{imgIdx + 1}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveInspectionImage(idx, imgIdx)}
+                                  className="text-emerald-900 hover:text-red-600 transition cursor-pointer"
+                                  title="Remove photo & delete from Cloudinary"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
 

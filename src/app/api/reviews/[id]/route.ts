@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import { Review } from '@/models/Review';
 import { getCurrentUser } from '@/lib/auth';
+import { CACHE_TAGS, invalidateCacheTag } from '@/lib/cache';
 import mongoose from 'mongoose';
 
 // Strictly Admin-only: Edit, approve/hide, or delete any customer review
@@ -90,6 +92,9 @@ export async function PATCH(
     review.editedByAdmin = true;
     await review.save();
 
+    invalidateCacheTag(CACHE_TAGS.REVIEWS);
+    revalidatePath('/');
+
     return NextResponse.json({
       success: true,
       message: 'Review updated successfully.',
@@ -143,6 +148,9 @@ export async function DELETE(
     if (!deleted) {
       return NextResponse.json({ success: false, message: 'Review not found.' }, { status: 404 });
     }
+
+    invalidateCacheTag(CACHE_TAGS.REVIEWS);
+    revalidatePath('/');
 
     return NextResponse.json({
       success: true,

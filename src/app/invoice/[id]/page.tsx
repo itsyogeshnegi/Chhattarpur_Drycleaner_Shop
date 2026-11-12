@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use, useCallback } from 'react';
+import { useEffect, useState, use, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -148,6 +148,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const [refreshingStatus, setRefreshingStatus] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [error, setError] = useState('');
+  const lastSilentRefreshRef = useRef<number>(0);
 
   const fetchInvoice = useCallback(
     async (silent = false) => {
@@ -193,12 +194,14 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   }, [fetchInvoice]);
 
   useEffect(() => {
-    if (!razorpayMeOpened) return;
+    if (!razorpayMeOpened || invoice?.paymentStatus === 'paid') return;
 
     const handleReturnRefresh = () => {
-      if (document.visibilityState === 'visible') {
-        fetchInvoice(true);
-      }
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastSilentRefreshRef.current < 4000) return;
+      lastSilentRefreshRef.current = now;
+      fetchInvoice(true);
     };
 
     window.addEventListener('focus', handleReturnRefresh);
@@ -207,7 +210,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
       window.removeEventListener('focus', handleReturnRefresh);
       document.removeEventListener('visibilitychange', handleReturnRefresh);
     };
-  }, [razorpayMeOpened, fetchInvoice]);
+  }, [razorpayMeOpened, invoice?.paymentStatus, fetchInvoice]);
 
   const handlePrint = () => {
     window.print();

@@ -9,6 +9,13 @@ export async function GET() {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!['admin', 'counter_staff'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Only store staff can upload garment photos.' },
+        { status: 403 }
+      );
+    }
+
     const signatureData = generateCloudinarySignature('alharam_garments');
     return NextResponse.json({ success: true, ...signatureData });
   } catch (error: unknown) {

@@ -150,6 +150,58 @@ async function seed() {
   });
   console.log('Shop Settings seeded successfully.');
 
+  // 4. Seed Initial Customer Reviews (only when reviews collection is empty so live reviews are preserved)
+  const ReviewCollection = db.collection('reviews');
+  const existingReviewCount = await ReviewCollection.countDocuments();
+  if (existingReviewCount === 0) {
+    console.log('Seeding starter customer reviews...');
+    const now = new Date();
+    await ReviewCollection.insertMany([
+      {
+        name: 'Rohit Sharma',
+        role: 'Chattarpur Resident',
+        serviceType: 'Suit & Sherwani Dry Cleaning',
+        rating: 5,
+        comment:
+          'Excellent stain removal on my formal blazers and woollen coats. Returned crisp, fresh, and neatly packaged right on schedule.',
+        isVerifiedCustomer: true,
+        isApproved: true,
+        editedByAdmin: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: 'Priya Mehta',
+        role: 'Regular Customer',
+        serviceType: 'Saree & Ethnic Care',
+        rating: 5,
+        comment:
+          'Super careful with heavy silk sarees and delicate embroidery. Free doorstep pickup and WhatsApp live tracking with OTP delivery makes it effortless.',
+        isVerifiedCustomer: true,
+        isApproved: true,
+        editedByAdmin: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: 'Aman Verma',
+        role: 'Vasant Kunj Enclave',
+        serviceType: 'Steam Ironing & Blankets',
+        rating: 5,
+        comment:
+          'Reliable turnaround every week for office shirts and winter blankets. Transparent digital billing and very courteous doorstep staff.',
+        isVerifiedCustomer: true,
+        isApproved: true,
+        editedByAdmin: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    console.log('Seeded 3 starter customer reviews.');
+  } else {
+    console.log(`Skipping review seed (${existingReviewCount} existing reviews found).`);
+  }
+
   await mongoose.disconnect();
   console.log('Seeding complete!');
   process.exit(0);

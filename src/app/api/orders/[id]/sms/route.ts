@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
 import { sendOrderReadySms } from '@/lib/sms';
+import { getCurrentUser } from '@/lib/auth';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 import mongoose from 'mongoose';
 
 export async function POST(
@@ -9,6 +11,30 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required.' },
+        { status: 401 }
+      );
+    }
+
+    if (!['admin', 'counter_staff'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Only store staff can trigger SMS alerts.' },
+        { status: 403 }
+      );
+    }
+
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`sms-dispatch:${ip}`, 15, 60_000);
+    if (!limit.allowed) {
+      return rateLimitResponse(
+        'Too many SMS requests. Please wait a minute before sending more alerts.',
+        limit.retryAfterSeconds
+      );
+    }
+
     const { id } = await params;
     await connectToDatabase();
 

@@ -4,9 +4,19 @@ import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
 import { verifyCaptcha } from '@/lib/captcha';
 import { signToken } from '@/lib/auth';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`staff-login:${ip}`, 15, 5 * 60_000);
+    if (!limit.allowed) {
+      return rateLimitResponse(
+        'Too many login attempts. Please wait a few minutes before trying again.',
+        limit.retryAfterSeconds
+      );
+    }
+
     const { userId, password, captchaCode, captchaToken } = await req.json();
 
     if (!userId || !password) {

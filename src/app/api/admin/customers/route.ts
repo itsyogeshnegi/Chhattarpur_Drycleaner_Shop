@@ -1,30 +1,166 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { PipelineStage } from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
 import { User } from '@/models/User';
+import { getCurrentUser } from '@/lib/auth';
 import { normalizeIndianPhone } from '@/lib/phone';
+import { escapeRegExp } from '@/lib/cache';
+
+function buildPhoneVariants(cleanPhone: string): string[] {
+  if (!cleanPhone) return [];
+  return Array.from(
+    new Set([cleanPhone, `0${cleanPhone}`, `+91${cleanPhone}`, `91${cleanPhone}`])
+  );
+}
+
+function buildCustomerActions(displayName: string, cleanPhone: string, address?: string) {
+  return {
+    whatsappUrl: `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
+      `Hello ${displayName}! Greetings from Al-Haram Dry Cleaners & Laundry Chattarpur. How may we assist you today?`
+    )}`,
+    posNewOrderUrl: `/admin/counter?customerName=${encodeURIComponent(
+      displayName
+    )}&customerPhone=${encodeURIComponent(cleanPhone)}&customerAddress=${encodeURIComponent(
+      address || ''
+    )}`,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required.' },
+        { status: 401 }
+      );
+    }
+
+    if (!['admin', 'counter_staff'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Only store staff can view customer directory.' },
+        { status: 403 }
+      );
+    }
+
     await connectToDatabase();
     const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search')?.trim() || '';
+    const detailPhone = searchParams.get('phone')?.trim() || '';
 
-    // Aggregate customers from OrderInvoice
-    const customerAgg = await OrderInvoice.aggregate([
+    // Lazy detail lookup for "Invoices (N)" modal: indexed single-customer history query
+    if (detailPhone) {
+      const cleanPhone = normalizeIndianPhone(detailPhone) || detailPhone;
+      const variants = buildPhoneVariants(cleanPhone);
+      const phoneQuery = variants.length > 0 ? { $in: variants } : cleanPhone;
+
+      const [orders, regUser] = await Promise.all([
+        OrderInvoice.find({ 'customer.phone': phoneQuery })
+          .select('invoiceNumber status grandTotal paidAmount balanceAmount paymentStatus createdAt items customer')
+          .sort({ createdAt: -1 })
+          .lean(),
+        User.findOne({
+          role: 'customer',
+          phone: phoneQuery,
+        })
+          .select('name phone email')
+          .lean(),
+      ]);
+
+      const orderSummaries = orders.map((ord) => ({
+        invoiceNumber: ord.invoiceNumber,
+        status: ord.status,
+        grandTotal: ord.grandTotal || 0,
+        balanceAmount: ord.balanceAmount || 0,
+        paymentStatus: ord.paymentStatus || 'unpaid',
+        createdAt: ord.createdAt,
+        itemsSummary: Array.isArray(ord.items)
+          ? ord.items.map((it) => `${it.quantity || 1}x ${it.name}`).join(', ')
+          : '',
+      }));
+
+      const latest = orders[0];
+      const displayName = latest?.customer?.name || regUser?.name || 'Valued Customer';
+      const address =
+        orders.find((o) => o.customer?.address)?.customer?.address || 'Chattarpur / Delhi NCR';
+      const email =
+        orders.find((o) => o.customer?.email)?.customer?.email || regUser?.email || '';
+
+      return NextResponse.json(
+        {
+          success: true,
+          customer: {
+            id: cleanPhone,
+            name: displayName,
+            phone: cleanPhone,
+            email,
+            address,
+            isRegistered: Boolean(regUser),
+            totalOrders: orderSummaries.length,
+            totalSpent: orders.reduce((s, o) => s + (o.grandTotal || 0), 0),
+            totalPaid: orders.reduce((s, o) => s + (o.paidAmount || 0), 0),
+            totalBalance: orders.reduce((s, o) => s + (o.balanceAmount || 0), 0),
+            firstOrderDate: orders[orders.length - 1]?.createdAt,
+            lastOrderDate: latest?.createdAt,
+            orders: orderSummaries,
+            lastThreeOrders: orderSummaries.slice(0, 3),
+            actions: buildCustomerActions(displayName, cleanPhone, address),
+          },
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    const search = searchParams.get('search')?.trim() || '';
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
+    const skip = (page - 1) * limit;
+
+    const matchStage: Record<string, unknown> = {
+      'customer.phone': { $exists: true, $ne: '' },
+    };
+
+    if (search) {
+      const escaped = escapeRegExp(search);
+      const cleanDigits = search.replace(/\D/g, '').replace(/^0+/, '');
+      const orFilters: Array<Record<string, unknown>> = [
+        { 'customer.name': { $regex: escaped, $options: 'i' } },
+        { 'customer.address': { $regex: escaped, $options: 'i' } },
+      ];
+      if (cleanDigits.length >= 3) {
+        const tailDigits = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
+        orFilters.push({ 'customer.phone': { $regex: escapeRegExp(tailDigits) } });
+      }
+      matchStage.$or = orFilters;
+    }
+
+    const pipeline: PipelineStage[] = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
       {
         $group: {
-          _id: '$customer.phone',
-          name: { $last: '$customer.name' },
-          phone: { $last: '$customer.phone' },
-          email: { $last: '$customer.email' },
-          address: { $last: '$customer.address' },
+          // Normalize trailing 10 chars in-DB so "08745073655", "+918745073655", "8745073655" merge atomically
+          _id: {
+            $substrCP: [
+              { $ifNull: ['$customer.phone', ''] },
+              {
+                $max: [
+                  0,
+                  { $subtract: [{ $strLenCP: { $ifNull: ['$customer.phone', ''] } }, 10] },
+                ],
+              },
+              10,
+            ],
+          },
+          name: { $first: '$customer.name' },
+          email: { $first: '$customer.email' },
+          address: { $first: '$customer.address' },
           totalOrders: { $sum: 1 },
           totalSpent: { $sum: '$grandTotal' },
           totalPaid: { $sum: '$paidAmount' },
           totalBalance: { $sum: '$balanceAmount' },
-          firstOrderDate: { $min: '$createdAt' },
-          lastOrderDate: { $max: '$createdAt' },
+          firstOrderDate: { $last: '$createdAt' },
+          lastOrderDate: { $first: '$createdAt' },
           orders: {
             $push: {
               invoiceNumber: '$invoiceNumber',
@@ -43,174 +179,154 @@ export async function GET(req: NextRequest) {
                       { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
                       { $toString: '$$this.quantity' },
                       'x ',
-                      '$$this.name'
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
+                      '$$this.name',
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       {
-        $sort: { lastOrderDate: -1 }
-      }
-    ]);
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          address: 1,
+          totalOrders: 1,
+          totalSpent: 1,
+          totalPaid: 1,
+          totalBalance: 1,
+          firstOrderDate: 1,
+          lastOrderDate: 1,
+          lastThreeOrders: { $slice: ['$orders', 3] },
+        },
+      },
+      { $sort: { lastOrderDate: -1 } },
+      {
+        $facet: {
+          metrics: [
+            {
+              $group: {
+                _id: null,
+                totalCustomers: { $sum: 1 },
+                repeatCustomers: {
+                  $sum: { $cond: [{ $gte: ['$totalOrders', 2] }, 1, 0] },
+                },
+                totalOrders: { $sum: '$totalOrders' },
+                totalRevenue: { $sum: '$totalSpent' },
+              },
+            },
+          ],
+          customers: [{ $skip: skip }, { $limit: limit }],
+        },
+      },
+    ];
 
-    // Also get all registered customer accounts from User model
-    const registeredUsers = await User.find({ role: 'customer' })
-      .select('name phone email createdAt')
-      .lean();
+    const [facetResult] = await OrderInvoice.aggregate(pipeline);
+    const rawMetrics = facetResult?.metrics?.[0] || {
+      totalCustomers: 0,
+      repeatCustomers: 0,
+      totalOrders: 0,
+      totalRevenue: 0,
+    };
+    const pagedRows = facetResult?.customers || [];
 
-    const registeredPhoneMap = new Map<string, typeof registeredUsers[0]>();
+    // Fetch registered User flags ONLY for the paginated customers on this page
+    const pagePhoneVariants = Array.from(
+      new Set(
+        pagedRows.flatMap((row: { _id: string }) => {
+          const clean = normalizeIndianPhone(row._id) || row._id;
+          return buildPhoneVariants(clean);
+        })
+      )
+    );
+
+    const registeredUsers =
+      pagePhoneVariants.length > 0
+        ? await User.find({
+            role: 'customer',
+            phone: { $in: pagePhoneVariants },
+          })
+            .select('name phone email')
+            .lean()
+        : [];
+
+    const registeredMap = new Map<string, (typeof registeredUsers)[0]>();
     registeredUsers.forEach((u) => {
       if (u.phone) {
-        const cleanPhone = normalizeIndianPhone(u.phone);
-        if (cleanPhone) {
-          registeredPhoneMap.set(cleanPhone, u);
-        }
+        const clean = normalizeIndianPhone(u.phone);
+        if (clean) registeredMap.set(clean, u);
       }
     });
 
-    // Deduplicate & Merge customers by strict normalized 10-digit Indian phone number
-    // (Prevents "08745073655" and "8745073655" from showing as two separate rows!)
-    type RawAggOrder = {
-      invoiceNumber: string;
-      status: string;
-      grandTotal: number;
-      balanceAmount: number;
-      paymentStatus: string;
-      createdAt: Date | string;
-      itemsSummary: string;
-    };
-
-    interface MergedBucket {
-      cleanPhone: string;
-      name: string;
-      email: string;
-      address: string;
+    const customers = pagedRows.map((c: {
+      _id: string;
+      name?: string;
+      email?: string;
+      address?: string;
       totalOrders: number;
       totalSpent: number;
       totalPaid: number;
       totalBalance: number;
-      firstOrderDate: Date;
-      lastOrderDate: Date;
-      orders: RawAggOrder[];
-    }
+      firstOrderDate?: Date | string;
+      lastOrderDate?: Date | string;
+      lastThreeOrders: Array<{
+        invoiceNumber: string;
+        status: string;
+        grandTotal: number;
+        balanceAmount: number;
+        paymentStatus: string;
+        createdAt: Date | string;
+        itemsSummary?: string;
+      }>;
+    }) => {
+      const cleanPhone = normalizeIndianPhone(c._id) || String(c._id || '').trim();
+      const regUser = registeredMap.get(cleanPhone);
+      const displayName = c.name || regUser?.name || 'Valued Customer';
+      const address = c.address || 'Chattarpur / Delhi NCR';
+      const lastThreeOrders = Array.isArray(c.lastThreeOrders) ? c.lastThreeOrders : [];
 
-    const mergedMap = new Map<string, MergedBucket>();
-
-    for (const c of customerAgg) {
-      const cleanPhone = normalizeIndianPhone(c.phone || c._id) || String(c._id || '').trim();
-      if (!cleanPhone) continue;
-
-      const existing = mergedMap.get(cleanPhone);
-      const firstDate = c.firstOrderDate ? new Date(c.firstOrderDate) : new Date();
-      const lastDate = c.lastOrderDate ? new Date(c.lastOrderDate) : new Date();
-      const rawOrders: RawAggOrder[] = Array.isArray(c.orders) ? c.orders : [];
-
-      if (existing) {
-        existing.totalOrders += c.totalOrders || 0;
-        existing.totalSpent += c.totalSpent || 0;
-        existing.totalPaid += c.totalPaid || 0;
-        existing.totalBalance += c.totalBalance || 0;
-        if (firstDate < existing.firstOrderDate) existing.firstOrderDate = firstDate;
-        if (lastDate > existing.lastOrderDate) {
-          existing.lastOrderDate = lastDate;
-          if (c.name) existing.name = c.name;
-          if (c.email) existing.email = c.email;
-          if (c.address) existing.address = c.address;
-        } else {
-          if (!existing.name && c.name) existing.name = c.name;
-          if (!existing.email && c.email) existing.email = c.email;
-          if (!existing.address && c.address) existing.address = c.address;
-        }
-        existing.orders.push(...rawOrders);
-      } else {
-        mergedMap.set(cleanPhone, {
-          cleanPhone,
-          name: c.name || '',
-          email: c.email || '',
-          address: c.address || '',
-          totalOrders: c.totalOrders || 0,
-          totalSpent: c.totalSpent || 0,
-          totalPaid: c.totalPaid || 0,
-          totalBalance: c.totalBalance || 0,
-          firstOrderDate: firstDate,
-          lastOrderDate: lastDate,
-          orders: [...rawOrders],
-        });
-      }
-    }
-
-    // Format final unified customer list sorted by newest activity first
-    let customers = Array.from(mergedMap.values())
-      .sort((a, b) => b.lastOrderDate.getTime() - a.lastOrderDate.getTime())
-      .map((c) => {
-        const regUser = registeredPhoneMap.get(c.cleanPhone);
-
-        const sortedOrders = [...c.orders].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-
-        const lastThreeOrders = sortedOrders.slice(0, 3);
-        const displayName = c.name || (regUser ? regUser.name : 'Valued Customer');
-
-        return {
-          id: c.cleanPhone,
-          name: displayName,
-          phone: c.cleanPhone,
-          email: c.email || (regUser ? regUser.email : ''),
-          address: c.address || 'Chattarpur / Delhi NCR',
-          isRegistered: !!regUser,
-          totalOrders: c.totalOrders,
-          totalSpent: c.totalSpent,
-          totalPaid: c.totalPaid,
-          totalBalance: c.totalBalance,
-          firstOrderDate: c.firstOrderDate,
-          lastOrderDate: c.lastOrderDate,
-          orders: sortedOrders,
-          lastThreeOrders,
-          actions: {
-            whatsappUrl: `https://wa.me/91${c.cleanPhone}?text=${encodeURIComponent(
-              `Hello ${displayName}! Greetings from Al-Haram Dry Cleaners & Laundry Chattarpur. How may we assist you today?`
-            )}`,
-            posNewOrderUrl: `/admin/counter?customerName=${encodeURIComponent(
-              displayName
-            )}&customerPhone=${encodeURIComponent(c.cleanPhone)}&customerAddress=${encodeURIComponent(
-              c.address || ''
-            )}`,
-          },
-        };
-      });
-
-    // If search filter is active
-    if (search) {
-      const lower = search.toLowerCase();
-      customers = customers.filter(
-        (c) =>
-          c.name.toLowerCase().includes(lower) ||
-          c.phone.includes(lower) ||
-          (c.address && c.address.toLowerCase().includes(lower))
-      );
-    }
-
-    // High level metrics
-    const totalCustomers = customers.length;
-    const repeatCustomers = customers.filter((c) => c.totalOrders >= 2).length;
-    const totalOrders = customers.reduce((sum, c) => sum + c.totalOrders, 0);
-    const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
-
-    return NextResponse.json({
-      success: true,
-      customers,
-      metrics: {
-        totalCustomers,
-        repeatCustomers,
-        totalOrders,
-        totalRevenue,
-      },
+      return {
+        id: cleanPhone,
+        name: displayName,
+        phone: cleanPhone,
+        email: c.email || regUser?.email || '',
+        address,
+        isRegistered: Boolean(regUser),
+        totalOrders: c.totalOrders || 0,
+        totalSpent: c.totalSpent || 0,
+        totalPaid: c.totalPaid || 0,
+        totalBalance: c.totalBalance || 0,
+        firstOrderDate: c.firstOrderDate,
+        lastOrderDate: c.lastOrderDate,
+        orders: lastThreeOrders,
+        lastThreeOrders,
+        actions: buildCustomerActions(displayName, cleanPhone, c.address),
+      };
     });
+
+    const totalCustomers = rawMetrics.totalCustomers || 0;
+
+    return NextResponse.json(
+      {
+        success: true,
+        customers,
+        metrics: {
+          totalCustomers,
+          repeatCustomers: rawMetrics.repeatCustomers || 0,
+          totalOrders: rawMetrics.totalOrders || 0,
+          totalRevenue: rawMetrics.totalRevenue || 0,
+        },
+        pagination: {
+          total: totalCustomers,
+          page,
+          totalPages: Math.max(1, Math.ceil(totalCustomers / limit)),
+        },
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to load admin customers:', error);
@@ -220,4 +336,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

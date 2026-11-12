@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
 import { sendOrderReadySms } from '@/lib/sms';
+import { getCurrentUser } from '@/lib/auth';
 import mongoose from 'mongoose';
 
 export async function PATCH(
@@ -9,6 +10,21 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required.' },
+        { status: 401 }
+      );
+    }
+
+    if (!['admin', 'counter_staff', 'delivery'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Only store staff can update order stages.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { status, otp, isOverride = false, triggerSms = true } = body;
@@ -91,8 +107,15 @@ export async function PATCH(
         order.deliveryVerifiedAt = new Date();
         order.deliveryVerifiedBy = 'store_counter_handover';
       }
+      // Clear OTP once handed over to keep DB storage lean
+      order.deliveryOtp = undefined;
+      order.deliveryOtpGeneratedAt = undefined;
     } else {
       order.status = status;
+      if (status === 'cancelled') {
+        order.deliveryOtp = undefined;
+        order.deliveryOtpGeneratedAt = undefined;
+      }
     }
 
     await order.save();

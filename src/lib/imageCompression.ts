@@ -6,6 +6,18 @@
 export async function compressImageUnder50KB(file: File): Promise<Blob> {
   const MAX_BYTES = 50 * 1024; // 50 KB strict limit
 
+  if (!file.type || !file.type.startsWith('image/')) {
+    throw new Error('Please select a valid image file.');
+  }
+
+  // Fast-path: keep small already-web-ready images as-is instead of re-encoding
+  if (
+    file.size <= MAX_BYTES &&
+    ['image/webp', 'image/jpeg', 'image/png'].includes(file.type)
+  ) {
+    return file;
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -18,8 +30,8 @@ export async function compressImageUnder50KB(file: File): Promise<Blob> {
         let width = img.width;
         let height = img.height;
 
-        // Resize down if too large (garment damage inspections look crisp at 900px-1200px max)
-        const maxDimension = 1000;
+        // Resize down if too large (garment damage inspections look crisp at 800px max)
+        const maxDimension = 800;
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.round((height * maxDimension) / width);

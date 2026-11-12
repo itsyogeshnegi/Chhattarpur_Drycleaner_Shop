@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { OrderInvoice } from '@/models/OrderInvoice';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 import mongoose from 'mongoose';
 
 export async function GET(
@@ -8,14 +9,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`order-detail:${ip}`, 45, 60_000);
+    if (!limit.allowed) {
+      return rateLimitResponse(
+        'Too many invoice lookup requests. Please wait a minute and try again.',
+        limit.retryAfterSeconds
+      );
+    }
+
     const { id } = await params;
+    const trimmedId = id.trim();
     await connectToDatabase();
 
+    const invoiceCandidates = Array.from(new Set([trimmedId, trimmedId.toUpperCase()]));
     let query: Record<string, unknown>;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      query = { $or: [{ _id: id }, { invoiceNumber: id }] };
+    if (mongoose.Types.ObjectId.isValid(trimmedId)) {
+      query = { $or: [{ _id: trimmedId }, { invoiceNumber: { $in: invoiceCandidates } }] };
     } else {
-      query = { invoiceNumber: id };
+      query = { invoiceNumber: { $in: invoiceCandidates } };
     }
 
     const order = await OrderInvoice.findOne(query).lean();

@@ -57,40 +57,35 @@ function TrackContent() {
     setSearchedOrders([]);
 
     try {
-      // First try fetching single invoice
-      const res = await fetch(`/api/orders/${q}`);
+      const hasLettersOrHyphens = /[a-zA-Z-]/.test(q);
+      const cleanDigits = q.replace(/\D/g, '').replace(/^0+/, '');
+      const isPhoneLookup = !hasLettersOrHyphens && cleanDigits.length >= 10;
+
+      if (isPhoneLookup) {
+        const cleanPhone = cleanDigits.slice(-10);
+        const custRes = await fetch(`/api/customer/orders?phone=${encodeURIComponent(cleanPhone)}`);
+        const custData = await custRes.json();
+
+        if (custData?.success && Array.isArray(custData.orders) && custData.orders.length > 0) {
+          if (custData.orders.length === 1) {
+            setOrder(custData.orders[0]);
+          } else {
+            setSearchedOrders(custData.orders);
+          }
+        } else {
+          setError(`No orders found matching "${q}". Please check your Invoice Number or Mobile Number.`);
+        }
+        return;
+      }
+
+      // Invoice Number / Order ID direct lookup (1 request)
+      const res = await fetch(`/api/orders/${encodeURIComponent(q)}`);
       const data = await res.json();
 
       if (data.success && data.order) {
         setOrder(data.order);
       } else {
-        // Fallback: search by phone number via customer API first (so deliveryOtp is available to customer), then general search
-        const cleanDigits = q.replace(/\D/g, '').replace(/^0+/, '');
-        const cleanPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
-        let searchData: { success?: boolean; orders?: OrderData[] } | null = null;
-
-        if (cleanPhone.length >= 10) {
-          const custRes = await fetch(`/api/customer/orders?phone=${encodeURIComponent(cleanPhone)}`);
-          const custData = await custRes.json();
-          if (custData.success && custData.orders?.length > 0) {
-            searchData = custData;
-          }
-        }
-
-        if (!searchData) {
-          const searchRes = await fetch(`/api/orders?search=${encodeURIComponent(q)}&limit=10`);
-          searchData = await searchRes.json();
-        }
-
-        if (searchData?.success && searchData.orders && searchData.orders.length > 0) {
-          if (searchData.orders.length === 1) {
-            setOrder(searchData.orders[0]);
-          } else {
-            setSearchedOrders(searchData.orders);
-          }
-        } else {
-          setError(`No orders found matching "${q}". Please check your Invoice Number or Mobile Number.`);
-        }
+        setError(`No orders found matching "${q}". Please check your Invoice Number or Mobile Number.`);
       }
     } catch {
       setError('Connection error. Please try again.');
