@@ -3,7 +3,6 @@ import { normalizeIndianPhone } from '@/lib/phone';
 import { connectToDatabase, isDatabaseConnectionError } from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
-import { verifyMathCaptcha } from '@/lib/mathCaptcha';
 import { signToken } from '@/lib/auth';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 
@@ -18,23 +17,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { identifier, password, captchaAnswer, captchaToken } = await req.json();
+    const { identifier, password } = await req.json();
 
     if (!identifier || !password) {
       return NextResponse.json(
         { success: false, message: 'Please provide your registered phone number or email, and password.' },
-        { status: 400 }
-      );
-    }
-
-    // Human verification check
-    const captchaCheck = verifyMathCaptcha(captchaAnswer, captchaToken);
-    if (!captchaCheck.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: captchaCheck.reason || 'Human verification failed. Please try again.',
-        },
         { status: 400 }
       );
     }

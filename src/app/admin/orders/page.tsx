@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
@@ -41,6 +41,51 @@ interface OrderRecord {
   createdAt: string;
 }
 
+const ORDER_STATUS_STYLES: Record<OrderRecord['status'], string> = {
+  received: 'bg-amber-50 text-amber-800 border-amber-200',
+  in_process: 'bg-sky-50 text-sky-800 border-sky-200',
+  ready: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  out_for_delivery: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  delivered: 'bg-slate-100 text-slate-700 border-slate-200',
+  cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+};
+
+const ORDER_STATUS_CHOICES: Array<{ value: OrderRecord['status']; label: string }> = [
+  { value: 'received', label: 'Received' },
+  { value: 'in_process', label: 'In Process' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'out_for_delivery', label: 'Out for Delivery' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+function formatServiceLabel(serviceType: string): string {
+  if (serviceType === 'dry_clean') return 'DC';
+  if (serviceType === 'steam_iron') return 'Press';
+  return serviceType.replace('_', ' ');
+}
+
+function getServiceBadgeClass(serviceType: string): string {
+  if (serviceType === 'dry_clean') return 'text-sky-700 bg-sky-50';
+  if (serviceType === 'steam_iron') return 'text-amber-700 bg-amber-50';
+  return 'text-emerald-700 bg-emerald-50';
+}
+
+function buildWhatsAppBillHref(ord: OrderRecord): string {
+  return generateWhatsAppInvoiceUrl({
+    customerName: ord.customer.name,
+    customerPhone: ord.customer.phone,
+    invoiceNumber: ord.invoiceNumber,
+    grandTotal: ord.grandTotal,
+    paymentStatus: ord.paymentStatus,
+    paidAmount: ord.paidAmount,
+    balanceAmount: ord.balanceAmount,
+    items: ord.items,
+    status: ord.status,
+    invoiceUrl: `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${ord.invoiceNumber}`,
+  });
+}
+
 function OrdersContent() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,9 +111,32 @@ function OrdersContent() {
   const [paymentMethod, setPaymentMethod] = useState<'online_razorpay' | 'upi' | 'cash' | 'card'>(
     'online_razorpay'
   );
+  const [paymentAmountMode, setPaymentAmountMode] = useState<'full' | 'custom'>('full');
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
   const [paymentTxRef, setPaymentTxRef] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const paymentAmountInputRef = useRef<HTMLInputElement | null>(null);
+
+  const switchToCustomAmount = () => {
+    setPaymentAmountMode('custom');
+    setPaymentAmountInput('');
+    setPaymentError('');
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        paymentAmountInputRef.current?.focus();
+      });
+    }
+  };
+
+  const openPaymentModal = (ord: OrderRecord) => {
+    setPaymentModalOrder(ord);
+    setPaymentMethod('online_razorpay');
+    setPaymentAmountMode('full');
+    setPaymentAmountInput(String(ord.balanceAmount));
+    setPaymentTxRef('');
+    setPaymentError('');
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -210,10 +278,30 @@ function OrdersContent() {
     }
   };
 
-  // Record payment / settle Razorpay.me, UPI, Cash, or Card balance
+  // Record payment / settle full due or custom partial amount
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentModalOrder) return;
+
+    const rawAmount =
+      paymentAmountMode === 'full'
+        ? paymentModalOrder.balanceAmount
+        : Number(paymentAmountInput);
+    const collectedAmount = Math.round(rawAmount * 100) / 100;
+
+    if (!Number.isFinite(collectedAmount) || collectedAmount <= 0) {
+      setPaymentError('Please enter a payment amount greater than ₹0.');
+      return;
+    }
+
+    if (collectedAmount > paymentModalOrder.balanceAmount) {
+      setPaymentError(
+        `Amount cannot exceed due balance of ₹${paymentModalOrder.balanceAmount}.`
+      );
+      return;
+    }
+
+    const markFullPaid = collectedAmount >= paymentModalOrder.balanceAmount;
 
     setPaymentSaving(true);
     setPaymentError('');
@@ -223,7 +311,8 @@ function OrdersContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentMethod,
-          markFullPaid: true,
+          markFullPaid,
+          collectedAmount,
           transactionRef: paymentTxRef.trim() || undefined,
         }),
       });
@@ -232,11 +321,15 @@ function OrdersContent() {
         setOrders((prev) =>
           prev.map((o) => (o._id === paymentModalOrder._id ? { ...o, ...data.order } : o))
         );
+        const remainingAfter = Number(data.order.balanceAmount || 0);
         setFeedbackMessage(
-          `Payment settled for Invoice #${paymentModalOrder.invoiceNumber} via ${paymentMethod.replace('_', ' ').toUpperCase()}.`
+          remainingAfter === 0
+            ? `Payment settled in full (₹${collectedAmount}) for Invoice #${paymentModalOrder.invoiceNumber} via ${paymentMethod.replace('_', ' ').toUpperCase()}.`
+            : `Recorded ₹${collectedAmount} payment for Invoice #${paymentModalOrder.invoiceNumber} via ${paymentMethod.replace('_', ' ').toUpperCase()}. Remaining Due: ₹${remainingAfter}.`
         );
         setPaymentModalOrder(null);
         setPaymentTxRef('');
+        setPaymentAmountInput('');
       } else {
         setPaymentError(data.message || 'Failed to record payment');
       }
@@ -408,27 +501,219 @@ function OrdersContent() {
         </select>
       </div>
 
-      {/* Orders Table Container - Optimized column widths and compact text */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs min-w-[850px]">
-            <thead className="bg-slate-900 text-white font-bold uppercase text-[9px] tracking-wider">
+      {/* Orders List & Table - Responsive & Uncluttered */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+        {/* Mobile & Narrow Tablet Cards (prevents cramped horizontal scrolling when sidebar is open) */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="py-12 text-center text-slate-400">
+              <div className="flex flex-col items-center justify-center gap-2 text-xs">
+                <RefreshCw className="w-4 h-4 animate-spin text-brand-500" />
+                <span>Loading orders pipeline...</span>
+              </div>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No orders found matching the filter criteria.
+            </div>
+          ) : (
+            orders.map((ord) => {
+              const totalPieces = ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0);
+              const isExpanded = !!expandedOrders[ord._id];
+              const visibleItems = isExpanded ? ord.items : ord.items.slice(0, 2);
+
+              return (
+                <div key={ord._id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/admin/invoices/${ord.invoiceNumber}`}
+                          className="font-mono font-bold text-brand-600 hover:text-brand-800 text-xs"
+                        >
+                          {ord.invoiceNumber}
+                        </Link>
+                        {ord.rackLocation && (
+                          <span className="font-mono font-semibold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                            Rack {ord.rackLocation}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="font-bold text-slate-900 text-sm">₹{ord.grandTotal}</span>
+                      <div className="mt-0.5 flex flex-col items-end gap-0.5">
+                        {ord.balanceAmount > 0 ? (
+                          <>
+                            {ord.paidAmount > 0 && (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                Paid ₹{ord.paidAmount}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openPaymentModal(ord)}
+                              className="text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full transition"
+                            >
+                              Due ₹{ord.balanceAmount} · Mark Paid
+                            </button>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            ✓ Paid
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-semibold text-slate-900 truncate">{ord.customer.name}</span>
+                    <a
+                      href={`tel:${ord.customer.phone}`}
+                      className="text-[11px] text-slate-500 font-mono hover:text-brand-600 inline-flex items-center gap-1 shrink-0"
+                    >
+                      <Phone className="w-3 h-3 text-slate-400" />
+                      {ord.customer.phone}
+                    </a>
+                  </div>
+
+                  <div className="bg-slate-50/80 rounded-xl px-3 py-2 border border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-700">
+                        {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
+                      </span>
+                      {ord.items.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleOrderExpand(ord._id)}
+                          className="text-brand-600 font-semibold hover:underline"
+                        >
+                          {isExpanded ? 'Show less' : `+${ord.items.length - 2} more`}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {visibleItems.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 text-[11px] bg-white border border-slate-200/80 rounded-md px-2 py-0.5 text-slate-700"
+                        >
+                          <span className="font-bold text-brand-600">{item.quantity}×</span>
+                          <span className="truncate max-w-[140px]">{item.name}</span>
+                          <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
+                            {formatServiceLabel(item.serviceType)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <select
+                        value={ord.status}
+                        disabled={updatingId === ord._id}
+                        onChange={(e) => handleUpdateStatus(ord._id, e.target.value)}
+                        className={`text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${ORDER_STATUS_STYLES[ord.status]}`}
+                      >
+                        {ORDER_STATUS_CHOICES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      {ord.status === 'out_for_delivery' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOtpModalOrder(ord);
+                            setEnteredOtp('');
+                            setOtpError('');
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          <span>Verify OTP</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerWhatsAppSms(ord)}
+                        disabled={smsSendingId === ord._id}
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold inline-flex items-center gap-1 transition ${
+                          ord.smsNotificationSent
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-brand-600 text-white border-brand-600'
+                        }`}
+                      >
+                        {ord.smsNotificationSent ? (
+                          <>
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Sent</span>
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="w-3 h-3" />
+                            <span>Alert</span>
+                          </>
+                        )}
+                      </button>
+
+                      <a
+                        href={buildWhatsAppBillHref(ord)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg inline-flex items-center"
+                        title="Send Full Bill on WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </a>
+
+                      <Link
+                        href={`/admin/invoices/${ord.invoiceNumber}`}
+                        className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg inline-flex items-center gap-1 text-[11px] font-semibold"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Bill</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Clean Desktop 5-Column Table (Fits comfortably beside open sidebar without clipping) */}
+        <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
-                <th className="py-2.5 px-3 min-w-[125px] whitespace-nowrap">Invoice #</th>
-                <th className="py-2.5 px-3 min-w-[135px]">Customer</th>
-                <th className="py-2.5 px-3 min-w-[240px]">Order Products</th>
-                <th className="py-2.5 px-2 min-w-[75px]">Rack Tag</th>
-                <th className="py-2.5 px-2.5 min-w-[95px]">Total / Bal</th>
-                <th className="py-2.5 px-2.5 min-w-[130px]">Stage / Status</th>
-                <th className="py-2.5 px-2.5 min-w-[115px]">SMS Alert</th>
-                <th className="py-2.5 px-2.5 text-right min-w-[85px]">Actions</th>
+                <th className="py-3 px-4">Order</th>
+                <th className="py-3 px-3">Customer</th>
+                <th className="py-3 px-3">Garments</th>
+                <th className="py-3 px-3">Payment</th>
+                <th className="py-3 px-4 text-right">Status &amp; Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-1.5 text-xs">
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2 text-xs">
                       <RefreshCw className="w-4 h-4 animate-spin text-brand-500" />
                       <span>Loading orders pipeline...</span>
                     </div>
@@ -436,267 +721,212 @@ function OrdersContent() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400 text-xs">
+                  <td colSpan={5} className="py-12 text-center text-slate-400 text-xs">
                     No orders found matching the filter criteria.
                   </td>
                 </tr>
               ) : (
-                orders.map((ord) => (
-                  <tr key={ord._id} className="hover:bg-slate-50/70 transition align-middle">
-                    {/* Invoice ID */}
-                    <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                      <Link
-                        href={`/admin/invoices/${ord.invoiceNumber}`}
-                        className="text-brand-600 hover:text-brand-800 underline decoration-dotted text-[11px]"
-                      >
-                        {ord.invoiceNumber}
-                      </Link>
-                      <p className="text-[9px] text-slate-400 font-normal">
-                        {new Date(ord.createdAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </p>
-                    </td>
+                orders.map((ord) => {
+                  const totalPieces = ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0);
+                  const isExpanded = !!expandedOrders[ord._id];
+                  const visibleItems = isExpanded ? ord.items : ord.items.slice(0, 2);
 
-                    {/* Customer Info */}
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-slate-900 text-xs truncate max-w-[130px]">
-                        {ord.customer.name}
-                      </div>
-                      <div className="flex items-center gap-1 mt-0.5">
+                  return (
+                    <tr key={ord._id} className="hover:bg-slate-50/70 transition align-top">
+                      {/* Order ID, Date & Optional Rack */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <Link
+                          href={`/admin/invoices/${ord.invoiceNumber}`}
+                          className="font-mono font-bold text-brand-600 hover:text-brand-800 hover:underline text-xs"
+                        >
+                          {ord.invoiceNumber}
+                        </Link>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </p>
+                        {ord.rackLocation && (
+                          <span className="mt-1 inline-block font-mono font-semibold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                            Rack {ord.rackLocation}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Customer */}
+                      <td className="py-3.5 px-3 max-w-[165px]">
+                        <div className="font-semibold text-slate-900 text-xs truncate" title={ord.customer.name}>
+                          {ord.customer.name}
+                        </div>
                         <a
                           href={`tel:${ord.customer.phone}`}
-                          className="text-[10px] text-slate-500 font-mono hover:text-brand-600 flex items-center gap-1"
+                          className="text-[11px] text-slate-500 font-mono hover:text-brand-600 inline-flex items-center gap-1 mt-0.5"
                           title="Call Customer"
                         >
-                          <Phone className="w-2.5 h-2.5 text-slate-400" />
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                           {ord.customer.phone}
                         </a>
-                      </div>
-                      {ord.customer.address && (
-                        <p className="text-[9px] text-slate-400 truncate max-w-[130px]" title={ord.customer.address}>
-                          📍 {ord.customer.address}
-                        </p>
-                      )}
-                    </td>
+                        {ord.customer.address && (
+                          <p className="text-[10px] text-slate-400 truncate mt-0.5" title={ord.customer.address}>
+                            {ord.customer.address}
+                          </p>
+                        )}
+                      </td>
 
-                    {/* Dedicated Column: Order Products - Clean, Legible & Properly Visible */}
-                    <td className="py-2.5 px-3 min-w-[240px]">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
-                            {ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0)} items
+                      {/* Compact Garments Summary */}
+                      <td className="py-3.5 px-3 max-w-[260px]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                            {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium truncate">
-                            for {ord.customer.name.split(' ')[0]}
-                          </span>
-                        </div>
-
-                        {/* List of ordered garments - Clear, legible, NO cramped scrollbar! */}
-                        <div className="space-y-1">
-                          {(expandedOrders[ord._id] ? ord.items : ord.items.slice(0, 3)).map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between gap-2 text-xs bg-slate-50 hover:bg-slate-100/90 border border-slate-200/90 rounded-lg px-2.5 py-1 transition"
-                            >
-                              <div className="flex items-center gap-1.5 truncate">
-                                <span className="font-extrabold text-brand-600 text-xs shrink-0">
-                                  {item.quantity}×
-                                </span>
-                                <span className="font-semibold text-slate-800 truncate text-xs" title={item.name}>
-                                  {item.name}
-                                </span>
-                              </div>
-                              <span
-                                className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded shrink-0 border ${
-                                  item.serviceType === 'dry_clean'
-                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
-                                    : item.serviceType === 'steam_iron'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                }`}
-                              >
-                                {item.serviceType === 'dry_clean'
-                                  ? 'DC'
-                                  : item.serviceType === 'steam_iron'
-                                  ? 'PRESS'
-                                  : item.serviceType.replace('_', ' ')}
-                              </span>
-                            </div>
-                          ))}
-
-                          {ord.items.length > 3 && (
+                          {ord.items.length > 2 && (
                             <button
                               type="button"
                               onClick={() => toggleOrderExpand(ord._id)}
-                              className="text-[10px] font-bold text-brand-600 hover:text-brand-800 hover:underline pt-0.5 flex items-center gap-1"
+                              className="text-[11px] font-semibold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer"
                             >
-                              {expandedOrders[ord._id]
-                                ? '▲ Show less'
-                                : `▼ +${ord.items.length - 3} more garments (View all)`}
+                              {isExpanded ? 'Show less' : `+${ord.items.length - 2} more`}
                             </button>
                           )}
                         </div>
-                      </div>
-                    </td>
 
-                    {/* Rack location */}
-                    <td className="py-2.5 px-2">
-                      {ord.rackLocation ? (
-                        <span className="font-mono font-bold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded inline-block">
-                          {ord.rackLocation}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 italic text-[10px]">—</span>
-                      )}
-                    </td>
-
-                    {/* Total & Balance */}
-                    <td className="py-2.5 px-2.5">
-                      <span className="font-bold text-slate-900 text-xs">₹{ord.grandTotal}</span>
-                      <div className="text-[9px] mt-0.5 flex flex-col items-start gap-1">
-                        {ord.balanceAmount > 0 ? (
-                          <>
-                            <span className="text-amber-700 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
-                              Bal: ₹{ord.balanceAmount}
+                        <div className="flex flex-wrap gap-1">
+                          {visibleItems.map((item, idx) => (
+                            <span
+                              key={idx}
+                              title={`${item.quantity}× ${item.name} (${item.serviceType.replace('_', ' ')})`}
+                              className="inline-flex items-center gap-1 text-[11px] bg-slate-50 border border-slate-200/80 rounded-md px-1.5 py-0.5 text-slate-700"
+                            >
+                              <span className="font-bold text-brand-600">{item.quantity}×</span>
+                              <span className="truncate max-w-[120px]">{item.name}</span>
+                              <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
+                                {formatServiceLabel(item.serviceType)}
+                              </span>
                             </span>
+                          ))}
+                        </div>
+                      </td>
+
+                      {/* Payment */}
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <div className="font-bold text-slate-900 text-sm">₹{ord.grandTotal}</div>
+                        <div className="mt-1 flex flex-col items-start gap-0.5">
+                          {ord.balanceAmount > 0 ? (
+                            <>
+                              {ord.paidAmount > 0 && (
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  Paid ₹{ord.paidAmount}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                Due ₹{ord.balanceAmount}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openPaymentModal(ord)}
+                                className="text-[10px] font-semibold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer"
+                              >
+                                Mark Paid
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                              ✓ Paid
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Stage & Unified Actions */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex flex-col items-end gap-1.5">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            <select
+                              value={ord.status}
+                              disabled={updatingId === ord._id}
+                              onChange={(e) => handleUpdateStatus(ord._id, e.target.value)}
+                              className={`text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${ORDER_STATUS_STYLES[ord.status]}`}
+                            >
+                              {ORDER_STATUS_CHOICES.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => handleTriggerWhatsAppSms(ord)}
+                              disabled={smsSendingId === ord._id}
+                              title="Send status alert to customer on WhatsApp"
+                              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold inline-flex items-center gap-1 transition cursor-pointer ${
+                                ord.smsNotificationSent
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700'
+                              }`}
+                            >
+                              {ord.smsNotificationSent ? (
+                                <>
+                                  <CheckCircle className="w-3 h-3" />
+                                  <span>Sent</span>
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="w-3 h-3" />
+                                  <span>Alert</span>
+                                </>
+                              )}
+                            </button>
+
+                            <a
+                              href={buildWhatsAppBillHref(ord)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg inline-flex items-center transition"
+                              title="Send Full Bill on WhatsApp"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+
+                            <Link
+                              href={`/admin/invoices/${ord.invoiceNumber}`}
+                              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg inline-flex items-center gap-1 text-[11px] font-semibold transition"
+                              title="Dual Invoice (Customer & Internal)"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Bill</span>
+                            </Link>
+                          </div>
+
+                          {ord.status === 'out_for_delivery' && (
                             <button
                               type="button"
                               onClick={() => {
-                                setPaymentModalOrder(ord);
-                                setPaymentMethod('online_razorpay');
-                                setPaymentTxRef('');
-                                setPaymentError('');
+                                setOtpModalOrder(ord);
+                                setEnteredOtp('');
+                                setOtpError('');
                               }}
-                              className="text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1 transition cursor-pointer"
+                              title="Ask the customer for their 4-digit Delivery OTP to complete handover"
                             >
-                              Mark Paid
+                              <KeyRound className="w-3 h-3" />
+                              <span>Verify &amp; Deliver OTP</span>
                             </button>
-                          </>
-                        ) : (
-                          <span className="text-emerald-700 font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                            ✓ Paid
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                          )}
 
-                    {/* Delivery Status Dropdown */}
-                    <td className="py-2.5 px-2.5 min-w-[130px]">
-                      <div className="space-y-1">
-                        <select
-                          value={ord.status}
-                          disabled={updatingId === ord._id}
-                          onChange={(e) => handleUpdateStatus(ord._id, e.target.value)}
-                          className={`text-[11px] font-bold rounded-lg px-2 py-1 border transition cursor-pointer w-full ${
-                            ord.status === 'ready'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                              : ord.status === 'delivered'
-                              ? 'bg-slate-100 text-slate-600 border-slate-300'
-                              : ord.status === 'out_for_delivery'
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}
-                        >
-                          <option value="received">📥 Received</option>
-                          <option value="in_process">🧼 In Process</option>
-                          <option value="ready">✅ Ready</option>
-                          <option value="out_for_delivery">🛵 Out for Delivery</option>
-                          <option value="delivered">🎉 Delivered</option>
-                          <option value="cancelled">❌ Cancelled</option>
-                        </select>
-
-                        {/* Out for Delivery Quick OTP Button */}
-                        {ord.status === 'out_for_delivery' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOtpModalOrder(ord);
-                              setEnteredOtp('');
-                              setOtpError('');
-                            }}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-[10px] px-2 py-1 rounded-md flex items-center justify-center gap-1 shadow-2xs transition"
-                            title="Ask the customer for their 4-digit Delivery OTP to complete handover"
-                          >
-                            <KeyRound className="w-3 h-3" />
-                            <span>Verify &amp; Deliver</span>
-                          </button>
-                        )}
-
-                        {ord.status === 'delivered' && ord.deliveryVerifiedBy === 'customer_otp' && (
-                          <div className="text-[9px] text-emerald-700 font-bold flex items-center gap-0.5 justify-center">
-                            <CheckCircle className="w-2.5 h-2.5" />
-                            <span>OTP Verified</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* SMS Alert */}
-                    <td className="py-2.5 px-2.5">
-                      <button
-                        type="button"
-                        onClick={() => handleTriggerWhatsAppSms(ord)}
-                        disabled={smsSendingId === ord._id}
-                        title="Click to send status alert to customer on WhatsApp"
-                        className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition ${
-                          ord.smsNotificationSent
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                            : 'bg-brand-600 text-white border-brand-700 hover:bg-brand-700'
-                        }`}
-                      >
-                        {ord.smsNotificationSent ? (
-                          <>
-                            <CheckCircle className="w-3 h-3 text-emerald-600" />
-                            <span>WA Sent</span>
-                          </>
-                        ) : (
-                          <>
-                            <MessageSquare className="w-3 h-3 text-white" />
-                            <span>SMS Alert</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-2.5 px-2.5 text-right space-x-1 whitespace-nowrap">
-                      {/* WhatsApp Deep link Bill */}
-                      <a
-                        href={generateWhatsAppInvoiceUrl({
-                          customerName: ord.customer.name,
-                          customerPhone: ord.customer.phone,
-                          invoiceNumber: ord.invoiceNumber,
-                          grandTotal: ord.grandTotal,
-                          paymentStatus: ord.paymentStatus,
-                          paidAmount: ord.paidAmount,
-                          balanceAmount: ord.balanceAmount,
-                          items: ord.items,
-                          status: ord.status,
-                          invoiceUrl: `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${ord.invoiceNumber}`,
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg inline-flex items-center"
-                        title="Send Full Bill on WhatsApp"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </a>
-
-                      {/* View Dual Invoice */}
-                      <Link
-                        href={`/admin/invoices/${ord.invoiceNumber}`}
-                        className="p-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg inline-flex items-center gap-1 text-[11px] font-semibold"
-                        title="Dual Invoice (Customer & Internal)"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Bill</span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                          {ord.status === 'delivered' && ord.deliveryVerifiedBy === 'customer_otp' && (
+                            <span className="text-[10px] text-emerald-700 font-semibold inline-flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" />
+                              OTP Verified
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -906,19 +1136,19 @@ function OrdersContent() {
           }}
         >
           <div
-            className="relative w-full max-w-md max-h-[90vh] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl border border-slate-200 my-auto animate-in zoom-in-95 duration-200"
+            className="relative w-full max-w-md max-h-[94vh] flex flex-col overflow-hidden bg-white rounded-3xl shadow-2xl border border-slate-200 my-auto animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 bg-gradient-to-r from-emerald-700 via-teal-700 to-sky-700 text-white flex items-center justify-between">
+            <div className="p-4 shrink-0 bg-gradient-to-r from-emerald-700 via-teal-700 to-sky-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white border border-white/30 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white border border-white/30 shrink-0">
                   <CreditCard className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30">
                     Counter & Online Settlement
                   </span>
-                  <h3 className="font-extrabold text-base text-white mt-0.5">
+                  <h3 className="font-extrabold text-sm sm:text-base text-white mt-0.5">
                     Record Invoice Payment
                   </h3>
                 </div>
@@ -935,78 +1165,226 @@ function OrdersContent() {
               </button>
             </div>
 
-            <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-sm text-brand-700">
-                    {paymentModalOrder.invoiceNumber}
-                  </span>
-                  <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    Due: ₹{paymentModalOrder.balanceAmount}
-                  </span>
-                </div>
-                <p className="font-bold text-slate-900">{paymentModalOrder.customer.name}</p>
-                <p className="text-slate-500">Grand Total: ₹{paymentModalOrder.grandTotal}</p>
-              </div>
+            <form
+              onSubmit={handleRecordPayment}
+              className="p-5 space-y-3 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {(() => {
+                const rawTrimmed = paymentAmountInput.trim();
+                const parsedCustom = rawTrimmed === '' ? NaN : Number(rawTrimmed);
+                const enteredAmount =
+                  paymentAmountMode === 'full'
+                    ? paymentModalOrder.balanceAmount
+                    : Math.round(parsedCustom * 100) / 100;
+                const exceedsDue =
+                  paymentAmountMode === 'custom' &&
+                  rawTrimmed !== '' &&
+                  Number.isFinite(enteredAmount) &&
+                  enteredAmount > paymentModalOrder.balanceAmount;
+                const isNonPositive =
+                  paymentAmountMode === 'custom' &&
+                  rawTrimmed !== '' &&
+                  (!Number.isFinite(enteredAmount) || enteredAmount <= 0);
+                const clampedAmount = Number.isFinite(enteredAmount)
+                  ? Math.max(0, Math.min(paymentModalOrder.balanceAmount, enteredAmount))
+                  : 0;
+                const remainingAfter = Math.max(
+                  0,
+                  Math.round((paymentModalOrder.balanceAmount - clampedAmount) * 100) / 100
+                );
+                const isValidEntered =
+                  Number.isFinite(enteredAmount) &&
+                  enteredAmount > 0 &&
+                  enteredAmount <= paymentModalOrder.balanceAmount;
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Payment Method</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) =>
-                    setPaymentMethod(
-                      e.target.value as 'online_razorpay' | 'upi' | 'cash' | 'card'
-                    )
-                  }
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
-                >
-                  <option value="online_razorpay">Razorpay.me / Online Payment</option>
-                  <option value="upi">Counter UPI (GPay / PhonePe / Paytm)</option>
-                  <option value="cash">Cash at Counter / Delivery</option>
-                  <option value="card">Card / POS Machine</option>
-                </select>
-              </div>
+                return (
+                  <>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-black text-sm text-brand-700">
+                          {paymentModalOrder.invoiceNumber}
+                        </span>
+                        <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          Due: ₹{paymentModalOrder.balanceAmount}
+                        </span>
+                      </div>
+                      <p className="font-bold text-slate-900">{paymentModalOrder.customer.name}</p>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Grand Total: ₹{paymentModalOrder.grandTotal}</span>
+                        {paymentModalOrder.paidAmount > 0 && (
+                          <span className="font-semibold text-emerald-700">
+                            Already Paid: ₹{paymentModalOrder.paidAmount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Razorpay Payment ID / UPI Reference (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={paymentTxRef}
-                  onChange={(e) => setPaymentTxRef(e.target.value)}
-                  placeholder="e.g. pay_Q12345abc or UTR number"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-bold text-slate-700">
+                          Amount Received (₹)
+                        </label>
+                        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-[11px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentAmountMode('full');
+                              setPaymentAmountInput(String(paymentModalOrder.balanceAmount));
+                              setPaymentError('');
+                            }}
+                            className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                              paymentAmountMode === 'full'
+                                ? 'bg-white text-emerald-700 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            Full Due (₹{paymentModalOrder.balanceAmount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={switchToCustomAmount}
+                            className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                              paymentAmountMode === 'custom'
+                                ? 'bg-white text-brand-700 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            Custom Amount
+                          </button>
+                        </div>
+                      </div>
 
-              {paymentError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                  <span>{paymentError}</span>
-                </div>
-              )}
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                          ₹
+                        </span>
+                        <input
+                          ref={paymentAmountInputRef}
+                          type="number"
+                          min={1}
+                          max={paymentModalOrder.balanceAmount}
+                          step="any"
+                          value={
+                            paymentAmountMode === 'full'
+                              ? String(paymentModalOrder.balanceAmount)
+                              : paymentAmountInput
+                          }
+                          onFocus={() => {
+                            if (paymentAmountMode === 'full') {
+                              setPaymentAmountMode('custom');
+                              setPaymentAmountInput('');
+                              setPaymentError('');
+                            }
+                          }}
+                          onChange={(e) => {
+                            setPaymentAmountMode('custom');
+                            setPaymentAmountInput(e.target.value);
+                            if (paymentError) setPaymentError('');
+                          }}
+                          placeholder={`Enter ₹1 – ₹${paymentModalOrder.balanceAmount}`}
+                          className={`w-full pl-8 pr-3 py-2 border rounded-xl text-sm font-bold text-slate-900 outline-none focus:ring-2 ${
+                            exceedsDue || isNonPositive
+                              ? 'bg-red-50/50 border-red-400 focus:ring-red-400'
+                              : 'bg-slate-50 border-slate-200 focus:ring-emerald-500'
+                          }`}
+                        />
+                      </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={paymentSaving}
-                  onClick={() => setPaymentModalOrder(null)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paymentSaving}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  {paymentSaving
-                    ? 'Settling...'
-                    : `Mark ₹${paymentModalOrder.balanceAmount} as Paid`}
-                </button>
-              </div>
+                      <div className="flex items-center justify-between text-[11px] px-1">
+                        {exceedsDue ? (
+                          <span className="font-semibold text-red-600">
+                            Cannot exceed current due amount of ₹{paymentModalOrder.balanceAmount}
+                          </span>
+                        ) : isNonPositive ? (
+                          <span className="font-semibold text-red-600">
+                            Enter an amount greater than ₹0
+                          </span>
+                        ) : paymentAmountMode === 'custom' && rawTrimmed === '' ? (
+                          <span className="text-slate-400">
+                            Enter up to ₹{paymentModalOrder.balanceAmount}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-slate-500">After this payment:</span>
+                            {remainingAfter === 0 && isValidEntered ? (
+                              <span className="font-bold text-emerald-700">
+                                ✓ Fully Paid (Remaining Due: ₹0)
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-amber-700">
+                                Remaining Due: ₹{remainingAfter}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Payment Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) =>
+                          setPaymentMethod(
+                            e.target.value as 'online_razorpay' | 'upi' | 'cash' | 'card'
+                          )
+                        }
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                      >
+                        <option value="online_razorpay">Razorpay.me / Online Payment</option>
+                        <option value="upi">Counter UPI (GPay / PhonePe / Paytm)</option>
+                        <option value="cash">Cash at Counter / Delivery</option>
+                        <option value="card">Card / POS Machine</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        Razorpay Payment ID / UPI Reference (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentTxRef}
+                        onChange={(e) => setPaymentTxRef(e.target.value)}
+                        placeholder="e.g. pay_Q12345abc or UTR number"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {paymentError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-2.5 rounded-xl flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                        <span>{paymentError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={paymentSaving}
+                        onClick={() => setPaymentModalOrder(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={paymentSaving || !isValidEntered}
+                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        {paymentSaving
+                          ? 'Recording...'
+                          : !isValidEntered
+                          ? 'Enter Valid Amount'
+                          : remainingAfter === 0
+                          ? `Mark ₹${clampedAmount} as Paid`
+                          : `Collect ₹${clampedAmount}`}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </form>
           </div>
         </div>,

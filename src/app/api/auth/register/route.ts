@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Human Verification Math CAPTCHA
+    // 2. Human Verification Math CAPTCHA (required on Sign Up)
     const captchaCheck = verifyMathCaptcha(captchaAnswer, captchaToken);
     if (!captchaCheck.valid) {
       return NextResponse.json(

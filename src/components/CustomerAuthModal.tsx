@@ -54,7 +54,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Math CAPTCHA State
+  // Math CAPTCHA State (used only for Sign Up)
   const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaLoading, setCaptchaLoading] = useState(false);
@@ -107,15 +107,17 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
     }
   }, []);
 
-  // When modal opens, completely reset fields and fetch fresh CAPTCHA; when closed, clean data
+  // When modal opens or closes, completely reset fields
   useEffect(() => {
-    if (isAuthModalOpen) {
-      resetForm();
+    resetForm();
+  }, [isAuthModalOpen, resetForm]);
+
+  // Load math CAPTCHA only when Sign Up mode is active
+  useEffect(() => {
+    if (isAuthModalOpen && mode === 'register') {
       fetchCaptcha();
-    } else {
-      resetForm();
     }
-  }, [isAuthModalOpen, fetchCaptcha, resetForm]);
+  }, [isAuthModalOpen, mode, fetchCaptcha]);
 
   // Close on Escape key
   useEffect(() => {
@@ -215,11 +217,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
       return;
     }
 
-    if (!captchaAnswer.trim() || !captcha?.token) {
-      setError('Please solve the human verification math problem.');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -229,8 +226,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
         body: JSON.stringify({
           identifier: loginIdentifier.trim(),
           password: loginPassword,
-          captchaAnswer: captchaAnswer.trim(),
-          captchaToken: captcha.token,
         }),
       });
 
@@ -247,13 +242,9 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
         }, 700);
       } else {
         setError(data.message || 'Login failed. Please check credentials.');
-        setCaptchaAnswer('');
-        fetchCaptcha();
       }
     } catch {
       setError('Connection error. Please try again.');
-      setCaptchaAnswer('');
-      fetchCaptcha();
     } finally {
       setLoading(false);
     }
@@ -304,7 +295,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
               onClick={() => {
                 setMode('register');
                 resetForm();
-                fetchCaptcha();
               }}
               className={`py-2 rounded-lg transition-all ${
                 mode === 'register'
@@ -319,7 +309,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
               onClick={() => {
                 setMode('login');
                 resetForm();
-                fetchCaptcha();
               }}
               className={`py-2 rounded-lg transition-all ${
                 mode === 'login'
@@ -435,7 +424,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                   </div>
                 </div>
 
-                {/* HUMAN VERIFICATION MATH CAPTCHA (CLEAN & CLEAR COMPACT BOX) */}
+                {/* HUMAN VERIFICATION MATH CAPTCHA (Sign Up only) */}
                 <div className="p-3 bg-gradient-to-r from-sky-50/80 via-blue-50/60 to-amber-50/80 border border-brand-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
@@ -505,7 +494,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                     onClick={() => {
                       setMode('login');
                       resetForm();
-                      fetchCaptcha();
                     }}
                     className="text-xs font-semibold text-brand-600 hover:text-brand-800 hover:underline"
                   >
@@ -560,52 +548,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                   </div>
                 </div>
 
-                {/* Math CAPTCHA for Login */}
-                <div className="p-3 bg-gradient-to-r from-sky-50/80 via-blue-50/60 to-amber-50/80 border border-brand-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
-                        Human Verification
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={fetchCaptcha}
-                      disabled={captchaLoading}
-                      title="Load new math question"
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-700 hover:text-brand-900 bg-white px-2 py-0.5 rounded border border-brand-200 shadow-2xs hover:bg-slate-50 transition"
-                    >
-                      <RotateCcw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
-                      <span>Refresh</span>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2.5">
-                    <div className="bg-slate-950 text-white font-mono font-black text-base sm:text-lg px-3.5 py-1.5 rounded-lg shadow-inner tracking-wider select-none shrink-0 flex items-center gap-1.5 border border-slate-700">
-                      <span>{captcha ? captcha.question : '...'}</span>
-                      <span className="text-amber-400">=</span>
-                      <span className="text-brand-400">?</span>
-                    </div>
-
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                        <Calculator className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        required
-                        placeholder="Right value"
-                        value={captchaAnswer}
-                        onChange={(e) => setCaptchaAnswer(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full pl-8 pr-3 py-1.5 bg-white border-2 border-brand-300 rounded-lg text-sm font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 {/* Submit Action */}
                 <button
                   type="submit"
@@ -628,7 +570,6 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                     onClick={() => {
                       setMode('register');
                       resetForm();
-                      fetchCaptcha();
                     }}
                     className="text-xs font-semibold text-brand-600 hover:text-brand-800 hover:underline"
                   >

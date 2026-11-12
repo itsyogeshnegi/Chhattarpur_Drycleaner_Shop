@@ -1,6 +1,14 @@
 import type { Metadata } from 'next';
+import { Poppins } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/Providers';
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-poppins',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: "AL-HARAM Drycleaner's And Launderettes | Premium Dry Cleaning in Chattarpur, New Delhi",
@@ -23,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body className="antialiased min-h-screen flex flex-col" suppressHydrationWarning>
+    <html lang="en" className={`${poppins.variable} scroll-smooth`} suppressHydrationWarning>
+      <body className={`${poppins.className} font-sans antialiased min-h-screen flex flex-col`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

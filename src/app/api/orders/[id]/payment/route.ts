@@ -22,6 +22,7 @@ export async function PATCH(
     const {
       paymentMethod = 'online_razorpay',
       paidAmount,
+      collectedAmount,
       transactionRef,
       markFullPaid = true,
     } = body;
@@ -41,10 +42,39 @@ export async function PATCH(
       return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
     }
 
-    const nextPaid = markFullPaid
-      ? order.grandTotal
-      : Math.min(order.grandTotal, Math.max(0, Number(paidAmount) || 0));
-    const nextBalance = Math.max(0, order.grandTotal - nextPaid);
+    let nextPaid = order.grandTotal;
+    if (collectedAmount !== undefined && collectedAmount !== null && !markFullPaid) {
+      const parsedCollected = Math.round(Number(collectedAmount) * 100) / 100;
+      if (!Number.isFinite(parsedCollected) || parsedCollected <= 0) {
+        return NextResponse.json(
+          { success: false, message: 'Collected amount must be greater than ₹0' },
+          { status: 400 }
+        );
+      }
+      if (order.balanceAmount <= 0) {
+        return NextResponse.json(
+          { success: false, message: 'This invoice is already fully paid' },
+          { status: 400 }
+        );
+      }
+      if (parsedCollected > order.balanceAmount) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Collected amount cannot exceed due balance of ₹${order.balanceAmount}`,
+          },
+          { status: 400 }
+        );
+      }
+      nextPaid = Math.min(
+        order.grandTotal,
+        Math.round(((Number(order.paidAmount) || 0) + parsedCollected) * 100) / 100
+      );
+    } else if (!markFullPaid) {
+      nextPaid = Math.min(order.grandTotal, Math.max(0, Number(paidAmount) || 0));
+    }
+
+    const nextBalance = Math.max(0, Math.round((order.grandTotal - nextPaid) * 100) / 100);
 
     order.paidAmount = nextPaid;
     order.balanceAmount = nextBalance;
