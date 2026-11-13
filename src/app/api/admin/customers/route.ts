@@ -48,14 +48,71 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const detailPhone = searchParams.get('phone')?.trim() || '';
 
+    // Date range filter for checking revenue & activity in a specific window
+    const startDateParam = searchParams.get('startDate')?.trim() || '';
+    const endDateParam = searchParams.get('endDate')?.trim() || '';
+
+    let dateRangeFilter: { $gte: Date; $lte: Date } | null = null;
+    if (startDateParam || endDateParam) {
+      if (!startDateParam || !endDateParam) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Both Start Date and End Date are mandatory when applying a date filter.',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (endDateParam < startDateParam) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'End Date cannot be smaller than Start Date.',
+          },
+          { status: 400 }
+        );
+      }
+
+      const start = new Date(`${startDateParam}T00:00:00+05:30`);
+      const end = new Date(`${endDateParam}T23:59:59.999+05:30`);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Invalid date format. Please provide valid dates (YYYY-MM-DD).',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (end < start) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'End Date cannot be smaller than Start Date.',
+          },
+          { status: 400 }
+        );
+      }
+
+      dateRangeFilter = { $gte: start, $lte: end };
+    }
+
     // Lazy detail lookup for "Invoices (N)" modal: indexed single-customer history query
     if (detailPhone) {
       const cleanPhone = normalizeIndianPhone(detailPhone) || detailPhone;
       const variants = buildPhoneVariants(cleanPhone);
       const phoneQuery = variants.length > 0 ? { $in: variants } : cleanPhone;
 
+      const orderQuery: Record<string, unknown> = {
+        'customer.phone': phoneQuery,
+        ...(dateRangeFilter ? { createdAt: dateRangeFilter } : {}),
+      };
+
       const [orders, regUser] = await Promise.all([
-        OrderInvoice.find({ 'customer.phone': phoneQuery })
+        OrderInvoice.find(orderQuery)
           .select('invoiceNumber status grandTotal paidAmount balanceAmount paymentStatus createdAt items customer')
           .sort({ createdAt: -1 })
           .lean(),
@@ -118,6 +175,7 @@ export async function GET(req: NextRequest) {
 
     const matchStage: Record<string, unknown> = {
       'customer.phone': { $exists: true, $ne: '' },
+      ...(dateRangeFilter ? { createdAt: dateRangeFilter } : {}),
     };
 
     if (search) {
@@ -319,6 +377,9 @@ export async function GET(req: NextRequest) {
           totalOrders: rawMetrics.totalOrders || 0,
           totalRevenue: rawMetrics.totalRevenue || 0,
         },
+        dateFilter: dateRangeFilter
+          ? { startDate: startDateParam, endDate: endDateParam }
+          : null,
         pagination: {
           total: totalCustomers,
           page,

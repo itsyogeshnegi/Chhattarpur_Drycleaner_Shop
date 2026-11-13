@@ -111,7 +111,7 @@ function OrdersContent() {
   const [paymentMethod, setPaymentMethod] = useState<'online_razorpay' | 'upi' | 'cash' | 'card'>(
     'online_razorpay'
   );
-  const [paymentAmountMode, setPaymentAmountMode] = useState<'full' | 'custom'>('full');
+  const [paymentAmountMode, setPaymentAmountMode] = useState<'full' | 'custom' | 'settle'>('full');
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
   const [paymentTxRef, setPaymentTxRef] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
@@ -278,10 +278,81 @@ function OrdersContent() {
     }
   };
 
+  // Settle invoice directly (customer doesn't want to pay more money: waive remaining due & close to ₹0)
+  const handleSettleOrder = async (collectedOverride?: number) => {
+    if (!paymentModalOrder) return;
+
+    const rawAmount =
+      collectedOverride !== undefined
+        ? collectedOverride
+        : paymentAmountMode === 'settle'
+        ? Number(paymentAmountInput || 0)
+        : paymentAmountMode === 'full'
+        ? 0
+        : Number(paymentAmountInput || 0);
+
+    const cleanCollected = Math.max(
+      0,
+      Math.min(paymentModalOrder.balanceAmount, Number.isFinite(rawAmount) ? rawAmount : 0)
+    );
+    const waived = Math.max(
+      0,
+      Math.round((paymentModalOrder.balanceAmount - cleanCollected) * 100) / 100
+    );
+
+    const confirmMsg =
+      cleanCollected > 0
+        ? `Settle Invoice #${paymentModalOrder.invoiceNumber}?\n\n• Collect: ₹${cleanCollected} (${paymentMethod.replace('_', ' ').toUpperCase()})\n• Waive remaining balance: ₹${waived}\n• Set remaining Due to: ₹0 (Mark as Settled / PAID)\n\nProceed to settle?`
+        : `Settle Invoice #${paymentModalOrder.invoiceNumber}?\n\n• Waive full due balance of: ₹${waived}\n• Set remaining Due to: ₹0 (Mark as Settled / PAID)\n\nProceed to settle?`;
+
+    if (typeof window !== 'undefined' && !window.confirm(confirmMsg)) return;
+
+    setPaymentSaving(true);
+    setPaymentError('');
+    try {
+      const res = await fetch(`/api/orders/${paymentModalOrder._id}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod,
+          settle: true,
+          collectedAmount: cleanCollected,
+          transactionRef: paymentTxRef.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.order) {
+        setOrders((prev) =>
+          prev.map((o) => (o._id === paymentModalOrder._id ? { ...o, ...data.order } : o))
+        );
+        setFeedbackMessage(
+          waived > 0
+            ? `Invoice #${paymentModalOrder.invoiceNumber} SETTLED: ₹${cleanCollected} collected, ₹${waived} balance waived. Due: ₹0.`
+            : `Invoice #${paymentModalOrder.invoiceNumber} settled in full.`
+        );
+        setPaymentModalOrder(null);
+        setPaymentTxRef('');
+        setPaymentAmountInput('');
+        setPaymentAmountMode('full');
+      } else {
+        setPaymentError(data.message || 'Failed to settle invoice');
+      }
+    } catch {
+      setPaymentError('Network error while settling invoice.');
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
   // Record payment / settle full due or custom partial amount
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentModalOrder) return;
+
+    if (paymentAmountMode === 'settle') {
+      const raw = Number(paymentAmountInput || 0);
+      return handleSettleOrder(Number.isFinite(raw) ? raw : 0);
+    }
 
     const rawAmount =
       paymentAmountMode === 'full'
@@ -1175,27 +1246,35 @@ function OrdersContent() {
                 const enteredAmount =
                   paymentAmountMode === 'full'
                     ? paymentModalOrder.balanceAmount
+                    : paymentAmountMode === 'settle'
+                    ? (Number.isFinite(parsedCustom) ? parsedCustom : 0)
                     : Math.round(parsedCustom * 100) / 100;
+
                 const exceedsDue =
-                  paymentAmountMode === 'custom' &&
                   rawTrimmed !== '' &&
                   Number.isFinite(enteredAmount) &&
                   enteredAmount > paymentModalOrder.balanceAmount;
+
                 const isNonPositive =
                   paymentAmountMode === 'custom' &&
                   rawTrimmed !== '' &&
                   (!Number.isFinite(enteredAmount) || enteredAmount <= 0);
+
                 const clampedAmount = Number.isFinite(enteredAmount)
                   ? Math.max(0, Math.min(paymentModalOrder.balanceAmount, enteredAmount))
                   : 0;
+
                 const remainingAfter = Math.max(
                   0,
                   Math.round((paymentModalOrder.balanceAmount - clampedAmount) * 100) / 100
                 );
+
                 const isValidEntered =
-                  Number.isFinite(enteredAmount) &&
-                  enteredAmount > 0 &&
-                  enteredAmount <= paymentModalOrder.balanceAmount;
+                  paymentAmountMode === 'settle'
+                    ? !exceedsDue
+                    : Number.isFinite(enteredAmount) &&
+                      enteredAmount > 0 &&
+                      enteredAmount <= paymentModalOrder.balanceAmount;
 
                 return (
                   <>
@@ -1251,6 +1330,21 @@ function OrdersContent() {
                           >
                             Custom Amount
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentAmountMode('settle');
+                              setPaymentAmountInput('');
+                              setPaymentError('');
+                            }}
+                            className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                              paymentAmountMode === 'settle'
+                                ? 'bg-amber-100 text-amber-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            Settle / Waive
+                          </button>
                         </div>
                       </div>
 
@@ -1261,7 +1355,7 @@ function OrdersContent() {
                         <input
                           ref={paymentAmountInputRef}
                           type="number"
-                          min={1}
+                          min={0}
                           max={paymentModalOrder.balanceAmount}
                           step="any"
                           value={
@@ -1277,14 +1371,19 @@ function OrdersContent() {
                             }
                           }}
                           onChange={(e) => {
-                            setPaymentAmountMode('custom');
                             setPaymentAmountInput(e.target.value);
                             if (paymentError) setPaymentError('');
                           }}
-                          placeholder={`Enter ₹1 – ₹${paymentModalOrder.balanceAmount}`}
+                          placeholder={
+                            paymentAmountMode === 'settle'
+                              ? `Amount collected (or 0 to waive full ₹${paymentModalOrder.balanceAmount})`
+                              : `Enter ₹1 – ₹${paymentModalOrder.balanceAmount}`
+                          }
                           className={`w-full pl-8 pr-3 py-2 border rounded-xl text-sm font-bold text-slate-900 outline-none focus:ring-2 ${
                             exceedsDue || isNonPositive
                               ? 'bg-red-50/50 border-red-400 focus:ring-red-400'
+                              : paymentAmountMode === 'settle'
+                              ? 'bg-amber-50/40 border-amber-300 focus:ring-amber-500'
                               : 'bg-slate-50 border-slate-200 focus:ring-emerald-500'
                           }`}
                         />
@@ -1298,6 +1397,10 @@ function OrdersContent() {
                         ) : isNonPositive ? (
                           <span className="font-semibold text-red-600">
                             Enter an amount greater than ₹0
+                          </span>
+                        ) : paymentAmountMode === 'settle' ? (
+                          <span className="font-semibold text-amber-800">
+                            ✓ Settle: Collect ₹{clampedAmount} &amp; waive remaining ₹{remainingAfter} (Due becomes ₹0)
                           </span>
                         ) : paymentAmountMode === 'custom' && rawTrimmed === '' ? (
                           <span className="text-slate-400">
@@ -1358,29 +1461,74 @@ function OrdersContent() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                       <button
                         type="button"
                         disabled={paymentSaving}
                         onClick={() => setPaymentModalOrder(null)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                       >
                         Cancel
                       </button>
-                      <button
-                        type="submit"
-                        disabled={paymentSaving || !isValidEntered}
-                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        {paymentSaving
-                          ? 'Recording...'
-                          : !isValidEntered
-                          ? 'Enter Valid Amount'
-                          : remainingAfter === 0
-                          ? `Mark ₹${clampedAmount} as Paid`
-                          : `Collect ₹${clampedAmount}`}
-                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {/* Dedicated Settle Button (when customer doesn't want to give more money) */}
+                        {paymentAmountMode !== 'settle' && (
+                          <button
+                            type="button"
+                            disabled={paymentSaving}
+                            onClick={() =>
+                              handleSettleOrder(
+                                paymentAmountMode === 'custom' && Number.isFinite(enteredAmount)
+                                  ? clampedAmount
+                                  : 0
+                              )
+                            }
+                            className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                            title="Customer doesn't want to pay remaining money: Settle order and waive balance to ₹0"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                            <span>
+                              {paymentAmountMode === 'custom' &&
+                              Number.isFinite(enteredAmount) &&
+                              clampedAmount > 0 &&
+                              clampedAmount < paymentModalOrder.balanceAmount
+                                ? `Settle at ₹${clampedAmount} (₹0 Due)`
+                                : 'Settle Bill (₹0 Due)'}
+                            </span>
+                          </button>
+                        )}
+
+                        {/* Primary Button */}
+                        <button
+                          type="submit"
+                          disabled={paymentSaving || !isValidEntered}
+                          className={`px-4 py-2 rounded-xl text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer ${
+                            paymentAmountMode === 'settle'
+                              ? 'bg-amber-600 hover:bg-amber-700'
+                              : 'bg-emerald-600 hover:bg-emerald-700'
+                          }`}
+                        >
+                          {paymentAmountMode === 'settle' ? (
+                            <ShieldCheck className="w-4 h-4" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4" />
+                          )}
+                          <span>
+                            {paymentSaving
+                              ? 'Processing...'
+                              : paymentAmountMode === 'settle'
+                              ? clampedAmount > 0
+                                ? `Settle at ₹${clampedAmount} (₹0 Due)`
+                                : `Settle & Waive ₹${paymentModalOrder.balanceAmount} Due`
+                              : !isValidEntered
+                              ? 'Enter Valid Amount'
+                              : remainingAfter === 0
+                              ? `Mark ₹${clampedAmount} as Paid`
+                              : `Collect ₹${clampedAmount}`}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </>
                 );

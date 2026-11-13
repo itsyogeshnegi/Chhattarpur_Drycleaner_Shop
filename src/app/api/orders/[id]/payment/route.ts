@@ -25,6 +25,7 @@ export async function PATCH(
       collectedAmount,
       transactionRef,
       markFullPaid = true,
+      settle = false,
     } = body;
 
     const validMethods = ['cash', 'upi', 'card', 'online_razorpay'];
@@ -40,6 +41,64 @@ export async function PATCH(
     const order = await OrderInvoice.findOne(query);
     if (!order) {
       return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    }
+
+    // Settle flow: Customer cannot/will not pay remaining balance; waive leftover balance & close due
+    if (settle) {
+      if (order.balanceAmount <= 0) {
+        return NextResponse.json(
+          { success: false, message: 'This invoice has no outstanding balance to settle' },
+          { status: 400 }
+        );
+      }
+      const rawCollected =
+        collectedAmount !== undefined && collectedAmount !== null ? Number(collectedAmount) : 0;
+      const parsedCollected = Math.max(0, Math.round(rawCollected * 100) / 100);
+
+      if (parsedCollected > order.balanceAmount) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Collected amount cannot exceed due balance of ₹${order.balanceAmount}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const prevPaid = Number(order.paidAmount) || 0;
+      const nextPaid = Math.round((prevPaid + parsedCollected) * 100) / 100;
+      const waivedAmount = Math.max(0, Math.round((order.balanceAmount - parsedCollected) * 100) / 100);
+
+      order.paidAmount = nextPaid;
+      order.balanceAmount = 0;
+      order.paymentStatus = 'paid';
+      order.paymentMethod = paymentMethod;
+
+      if (waivedAmount > 0) {
+        order.discountAmount = Math.round(((Number(order.discountAmount) || 0) + waivedAmount) * 100) / 100;
+        order.grandTotal = Math.max(0, Math.round((order.grandTotal - waivedAmount) * 100) / 100);
+        order.discountType = 'fixed';
+        const note = `[Settled on ${new Date().toLocaleDateString('en-IN')}: ₹${parsedCollected} collected via ${paymentMethod}, ₹${waivedAmount} balance waived/settled]`;
+        order.internalNotes = order.internalNotes ? `${order.internalNotes}\n${note}` : note;
+      }
+
+      if (transactionRef && String(transactionRef).trim()) {
+        order.razorpayPaymentId = String(transactionRef).trim();
+      }
+
+      await order.save();
+
+      const safeOrder = order.toObject ? order.toObject() : { ...order };
+      delete (safeOrder as Record<string, unknown>).deliveryOtp;
+
+      return NextResponse.json({
+        success: true,
+        message:
+          waivedAmount > 0
+            ? `Invoice ${order.invoiceNumber} SETTLED (₹${parsedCollected} collected, ₹${waivedAmount} balance waived).`
+            : `Invoice ${order.invoiceNumber} fully settled in full.`,
+        order: { ...safeOrder, hasDeliveryOtp: Boolean(order.deliveryOtp) },
+      });
     }
 
     let nextPaid = order.grandTotal;

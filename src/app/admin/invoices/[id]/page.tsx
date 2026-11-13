@@ -6,8 +6,6 @@ import Image from 'next/image';
 import {
   Sparkles,
   Printer,
-  MessageSquare,
-  Mail,
   ArrowLeft,
   FileText,
   ShieldCheck,
@@ -15,7 +13,6 @@ import {
   Tag,
   Camera,
 } from 'lucide-react';
-import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
 
 interface OrderInvoiceRecord {
   _id: string;
@@ -93,26 +90,6 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const publicInvoiceUrl = typeof window !== 'undefined' ? `${window.location.origin}/invoice/${invoice.invoiceNumber}` : '';
-  const whatsappUrl = generateWhatsAppInvoiceUrl({
-    customerName: invoice.customer.name,
-    customerPhone: invoice.customer.phone,
-    invoiceNumber: invoice.invoiceNumber,
-    grandTotal: invoice.grandTotal,
-    paymentStatus: invoice.paymentStatus,
-    paidAmount: invoice.paidAmount,
-    balanceAmount: invoice.balanceAmount,
-    items: invoice.items,
-    status: invoice.status,
-    invoiceUrl: publicInvoiceUrl,
-  });
-
-  const mailSubject = encodeURIComponent(`Al Haram Dry Cleaner - Invoice #${invoice.invoiceNumber}`);
-  const mailBody = encodeURIComponent(
-    `Dear ${invoice.customer.name},\n\nThank you for choosing Al Haram Drycleaner's & Launderettes.\n\nYour official invoice #${invoice.invoiceNumber} (Total: ₹${invoice.grandTotal}) is ready.\nYou can view, pay online, or download your PDF receipt here:\n${publicInvoiceUrl}\n\nWarm regards,\nAl Haram Dry Cleaners, Chattarpur\n+91 87005 48416`
-  );
-  const emailUrl = `mailto:${invoice.customer.email || ''}?subject=${mailSubject}&body=${mailBody}`;
-
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Top Toolbar (Hidden on print) */}
@@ -149,29 +126,11 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
           </button>
         </div>
 
-        {/* Sharing & Printing (Requirement 8) */}
+        {/* Printing */}
         <div className="flex items-center gap-2">
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            WhatsApp
-          </a>
-
-          <a
-            href={emailUrl}
-            className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            Email
-          </a>
-
           <button
             onClick={() => window.print()}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             Print Slip

@@ -49,7 +49,7 @@ function AdminNavItems({
       shortName: 'Customers',
       href: '/admin/customers',
       icon: Users,
-      desc: 'Profiles & 3 quick actions',
+      desc: 'Profiles & quick actions',
       isActive: pathname.startsWith('/admin/customers'),
     },
     {

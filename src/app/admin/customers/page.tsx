@@ -8,7 +8,6 @@ import {
   Search,
   RefreshCw,
   Phone,
-  MessageSquare,
   FileText,
   ShoppingBag,
   PlusCircle,
@@ -17,6 +16,8 @@ import {
   Clock,
   IndianRupee,
   UserCheck,
+  Calendar,
+  ArrowRight,
   X,
   CheckCircle,
   AlertCircle,
@@ -74,14 +75,29 @@ export default function AdminCustomersPage() {
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<CustomerRecord | null>(null);
   const [loadingHistoryDetail, setLoadingHistoryDetail] = useState(false);
 
+  // Date-wise Revenue Filter state (start date & end date mandatory; end date >= start date)
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [dateError, setDateError] = useState('');
+
   useBodyScrollLock(Boolean(selectedCustomerForHistory));
 
-  const fetchCustomers = async (targetPage = page) => {
+  const fetchCustomers = async (
+    targetPage = page,
+    startToUse = appliedStartDate,
+    endToUse = appliedEndDate
+  ) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
       params.set('page', String(targetPage));
+      if (startToUse && endToUse) {
+        params.set('startDate', startToUse);
+        params.set('endDate', endToUse);
+      }
 
       const res = await fetch(`/api/admin/customers?${params.toString()}`, { cache: 'no-store' });
       if (res.status === 401 || res.status === 403) {
@@ -96,6 +112,9 @@ export default function AdminCustomersPage() {
         setCustomers(data.customers || []);
         if (data.metrics) setMetrics(data.metrics);
         if (data.pagination) setPagination(data.pagination);
+        setDateError('');
+      } else {
+        setDateError(data.message || 'Failed to fetch customers');
       }
     } catch (err) {
       console.error('Failed to load customers:', err);
@@ -104,14 +123,49 @@ export default function AdminCustomersPage() {
     }
   };
 
+  const handleApplyDateFilter = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!startDate.trim() || !endDate.trim()) {
+      setDateError('Both Start Date and End Date are mandatory.');
+      return;
+    }
+
+    if (endDate.trim() < startDate.trim()) {
+      setDateError('End Date cannot be smaller than Start Date.');
+      return;
+    }
+
+    setDateError('');
+    setAppliedStartDate(startDate.trim());
+    setAppliedEndDate(endDate.trim());
+    setPage(1);
+    fetchCustomers(1, startDate.trim(), endDate.trim());
+  };
+
+  const handleClearDateFilter = () => {
+    setStartDate('');
+    setEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+    setDateError('');
+    setPage(1);
+    fetchCustomers(1, '', '');
+  };
+
   const openCustomerHistoryModal = async (cust: CustomerRecord) => {
     setSelectedCustomerForHistory(cust);
-    if (cust.totalOrders <= cust.orders.length) return;
+    if (cust.totalOrders <= cust.orders.length && !appliedStartDate && !appliedEndDate) return;
 
     setLoadingHistoryDetail(true);
     try {
+      const params = new URLSearchParams({ phone: cust.phone });
+      if (appliedStartDate && appliedEndDate) {
+        params.set('startDate', appliedStartDate);
+        params.set('endDate', appliedEndDate);
+      }
       const res = await fetch(
-        `/api/admin/customers?phone=${encodeURIComponent(cust.phone)}`,
+        `/api/admin/customers?${params.toString()}`,
         { cache: 'no-store' }
       );
       const data = await res.json();
@@ -126,7 +180,7 @@ export default function AdminCustomersPage() {
   };
 
   useEffect(() => {
-    fetchCustomers(page);
+    fetchCustomers(page, appliedStartDate, appliedEndDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
@@ -177,7 +231,7 @@ export default function AdminCustomersPage() {
             Customers List
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            View customer details, lifetime spending history, and execute the 3 key actions (WhatsApp, Order History, New Order).
+            View customer details, lifetime spending history, and execute quick actions (Invoices, New Order).
           </p>
         </div>
 
@@ -201,7 +255,9 @@ export default function AdminCustomersPage() {
             </div>
           </div>
           <p className="text-2xl font-extrabold text-slate-900 mt-2">{metrics.totalCustomers}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Profiles recorded in database</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {appliedStartDate && appliedEndDate ? 'Active clients in selected period' : 'Profiles recorded in database'}
+          </p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -227,19 +283,190 @@ export default function AdminCustomersPage() {
             </div>
           </div>
           <p className="text-2xl font-extrabold text-slate-900 mt-2">{metrics.totalOrders}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Combined customer bookings</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {appliedStartDate && appliedEndDate ? 'Bookings in selected period' : 'Combined customer bookings'}
+          </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <div
+          className={`p-4 rounded-xl border shadow-xs transition ${
+            appliedStartDate && appliedEndDate
+              ? 'bg-gradient-to-br from-indigo-50/90 to-brand-50/60 border-indigo-300 ring-2 ring-indigo-200/70'
+              : 'bg-white border-slate-200'
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Revenue</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-600">Total Revenue</span>
+              {appliedStartDate && appliedEndDate && (
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-600 text-white">
+                  Filtered
+                </span>
+              )}
+            </div>
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <IndianRupee className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900 mt-2">₹{metrics.totalRevenue.toLocaleString('en-IN')}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Lifetime customer billing</p>
+          <p className="text-2xl font-extrabold text-slate-900 mt-2">
+            ₹{metrics.totalRevenue.toLocaleString('en-IN')}
+          </p>
+          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+            {appliedStartDate && appliedEndDate
+              ? `${new Date(appliedStartDate).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })} – ${new Date(appliedEndDate).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}`
+              : 'Lifetime customer billing'}
+          </p>
         </div>
+      </div>
+
+      {/* Date-wise Revenue & Activity Filter Bar */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5">
+        {/* Header line with title and active badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-slate-900 text-sm">
+                  Date-wise Revenue Filter
+                </span>
+                {appliedStartDate && appliedEndDate && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Active Filter
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Filter customer bookings and calculate exact billing revenue between start and end dates
+              </p>
+            </div>
+          </div>
+
+          {appliedStartDate && appliedEndDate && (
+            <div className="inline-flex items-center gap-1.5 self-start sm:self-auto text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-3 py-1 rounded-xl">
+              <span>Period Revenue:</span>
+              <strong className="font-extrabold">₹{metrics.totalRevenue.toLocaleString('en-IN')}</strong>
+              <span className="text-slate-400">({metrics.totalOrders} {metrics.totalOrders === 1 ? 'order' : 'orders'})</span>
+            </div>
+          )}
+        </div>
+
+        {/* Input Controls Container - Spacious, perfectly aligned, zero text overlap */}
+        <form
+          onSubmit={handleApplyDateFilter}
+          className="bg-slate-50/70 p-3 sm:p-3.5 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap"
+        >
+          {/* Start Date */}
+          <div className="flex-1 min-w-[150px] max-w-full sm:max-w-[200px]">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Start Date <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (dateError) setDateError('');
+              }}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-hidden cursor-pointer shadow-2xs h-[38px]"
+            />
+          </div>
+
+          {/* Arrow separator */}
+          <div className="hidden sm:flex items-center justify-center pb-2.5 text-slate-400 shrink-0">
+            <ArrowRight className="w-4 h-4" />
+          </div>
+
+          {/* End Date */}
+          <div className="flex-1 min-w-[150px] max-w-full sm:max-w-[200px]">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              End Date <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              min={startDate || undefined}
+              value={endDate}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEndDate(val);
+                if (startDate && val && val < startDate) {
+                  setDateError('End Date cannot be smaller than Start Date.');
+                } else if (dateError) {
+                  setDateError('');
+                }
+              }}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-hidden cursor-pointer shadow-2xs h-[38px]"
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex items-center gap-2 pt-1 sm:pt-0">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-bold text-xs px-4 py-2 rounded-lg transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer h-[38px] shrink-0"
+            >
+              <IndianRupee className="w-3.5 h-3.5" />
+              <span>Check Revenue</span>
+            </button>
+
+            {(appliedStartDate || appliedEndDate || startDate || endDate) && (
+              <button
+                type="button"
+                onClick={handleClearDateFilter}
+                className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer h-[38px] shadow-2xs shrink-0"
+                title="Reset date filter and view lifetime stats"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </form>
+
+        {/* Validation Error or Active Filter Range Confirmation */}
+        {dateError ? (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <span>{dateError}</span>
+          </div>
+        ) : appliedStartDate && appliedEndDate ? (
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5 font-medium">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>
+                Showing customer orders &amp; revenue from{' '}
+                <strong className="text-slate-800 font-bold">
+                  {new Date(appliedStartDate).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-slate-800 font-bold">
+                  {new Date(appliedEndDate).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </strong>
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Search Bar */}
@@ -271,17 +498,145 @@ export default function AdminCustomersPage() {
         </button>
       </div>
 
-      {/* Customers Table Container */}
+      {/* Customers List Container */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        {/* Mobile / Tablet Card View (< lg) */}
+        <div className="block lg:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="py-12 text-center text-slate-400">
+              <div className="flex flex-col items-center justify-center gap-2 text-xs">
+                <RefreshCw className="w-5 h-5 animate-spin text-brand-600" />
+                <span>Loading customers directory...</span>
+              </div>
+            </div>
+          ) : customers.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs px-4">
+              No customers found matching &ldquo;{search}&rdquo;.
+            </div>
+          ) : (
+            customers.map((cust) => (
+              <div key={cust.id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-50 to-indigo-100 text-brand-700 font-extrabold flex items-center justify-center text-xs border border-brand-200/60 shrink-0">
+                      {cust.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 text-sm truncate" title={cust.name}>
+                        {cust.name}
+                      </h4>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {cust.isRegistered ? (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                            Registered
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md">
+                            Walk-in
+                          </span>
+                        )}
+                        {cust.totalOrders >= 2 && (
+                          <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md">
+                            Repeat
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="font-extrabold text-sm text-slate-900">
+                      ₹{cust.totalSpent.toLocaleString('en-IN')}
+                    </span>
+                    <div className="mt-0.5">
+                      {cust.totalBalance > 0 ? (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-full inline-block">
+                          Due: ₹{cust.totalBalance.toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full inline-block">
+                          ✓ Fully Paid
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 text-xs pt-1 border-t border-slate-100 text-slate-600">
+                  <a
+                    href={`tel:${cust.phone}`}
+                    className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-700 hover:text-brand-600 self-start"
+                  >
+                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{cust.phone}</span>
+                  </a>
+                  {cust.address && (
+                    <div className="text-[11px] text-slate-600 flex items-start gap-1.5 leading-snug">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="break-words whitespace-normal">{cust.address}</span>
+                    </div>
+                  )}
+                </div>
+
+                {cust.lastThreeOrders.length > 0 && (
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/70 text-xs flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link
+                          href={`/admin/invoices/${cust.lastThreeOrders[0].invoiceNumber}`}
+                          className="font-mono font-bold text-xs text-brand-600 hover:underline"
+                        >
+                          {cust.lastThreeOrders[0].invoiceNumber}
+                        </Link>
+                        {getStatusBadge(cust.lastThreeOrders[0].status)}
+                      </div>
+                      {cust.lastThreeOrders[0].itemsSummary && (
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {cust.lastThreeOrders[0].itemsSummary}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                      {new Date(cust.lastThreeOrders[0].createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => openCustomerHistoryModal(cust)}
+                    className="flex-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-brand-600" />
+                    <span>Invoices ({cust.totalOrders})</span>
+                  </button>
+                  <Link
+                    href={cust.actions.posNewOrderUrl}
+                    className="flex-1 bg-slate-900 hover:bg-brand-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>New Order</span>
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Clean Desktop Table (>= lg) */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[900px]">
-            <thead className="bg-slate-900 text-white font-bold uppercase text-[9px] tracking-wider">
+            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider select-none">
               <tr>
-                <th className="py-3 px-4">Customer Name &amp; Profile</th>
-                <th className="py-3 px-4">Contact &amp; Address</th>
-                <th className="py-3 px-3 text-center">Orders &amp; Total Spend</th>
-                <th className="py-3 px-4">Last Activity / Order</th>
-                <th className="py-3 px-4 text-center">Three Quick Actions</th>
+                <th className="py-3.5 px-4 w-[220px]">Customer</th>
+                <th className="py-3.5 px-4 w-[250px] max-w-[250px]">Contact &amp; Address</th>
+                <th className="py-3.5 px-4 w-[150px] text-center">Orders &amp; Spend</th>
+                <th className="py-3.5 px-4">Latest Activity</th>
+                <th className="py-3.5 px-4 w-[220px] text-right">Quick Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -302,29 +657,29 @@ export default function AdminCustomersPage() {
                 </tr>
               ) : (
                 customers.map((cust) => (
-                  <tr key={cust.id} className="hover:bg-slate-50/80 transition">
+                  <tr key={cust.id} className="hover:bg-slate-50/70 transition-colors">
                     {/* Customer Name & Profile */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-extrabold flex items-center justify-center text-xs shrink-0">
+                    <td className="py-3.5 px-4 align-top">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-50 to-indigo-100 text-brand-700 font-extrabold flex items-center justify-center text-sm border border-brand-200/60 shadow-2xs shrink-0">
                           {cust.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="font-extrabold text-slate-900 text-sm">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 text-sm leading-snug truncate" title={cust.name}>
                             {cust.name}
                           </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {cust.isRegistered ? (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full">
-                                Registered User
+                              <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                Registered
                               </span>
                             ) : (
-                              <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-full">
-                                Walk-in / Counter
+                              <span className="inline-flex items-center text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md">
+                                Walk-in
                               </span>
                             )}
                             {cust.totalOrders >= 2 && (
-                              <span className="text-[9px] font-bold text-brand-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded-full">
+                              <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md">
                                 Repeat
                               </span>
                             )}
@@ -334,67 +689,71 @@ export default function AdminCustomersPage() {
                     </td>
 
                     {/* Contact & Address */}
-                    <td className="py-3 px-4">
-                      <div className="space-y-1">
-                        <a
-                          href={`tel:${cust.phone}`}
-                          className="font-mono text-xs font-bold text-slate-700 hover:text-brand-600 flex items-center gap-1.5"
-                          title="Call Customer"
-                        >
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{cust.phone}</span>
-                        </a>
-                        {cust.address && (
-                          <p className="text-[11px] text-slate-500 flex items-start gap-1 max-w-[200px] leading-tight">
-                            <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                            <span className="truncate" title={cust.address}>
+                    <td className="py-3.5 px-4 align-top w-[250px] max-w-[250px]">
+                      <div className="space-y-1.5">
+                        <div>
+                          <a
+                            href={`tel:${cust.phone}`}
+                            className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-800 hover:text-brand-600 transition bg-slate-50 hover:bg-slate-100 border border-slate-200/70 px-2 py-0.5 rounded-md"
+                            title="Call Customer"
+                          >
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{cust.phone}</span>
+                          </a>
+                        </div>
+                        {cust.address ? (
+                          <div className="text-[11px] text-slate-600 flex items-start gap-1.5 leading-snug">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                            <span className="break-words whitespace-normal font-normal">
                               {cust.address}
                             </span>
-                          </p>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic">No address recorded</p>
                         )}
                       </div>
                     </td>
 
                     {/* Orders & Total Spend */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="space-y-0.5">
-                        <span className="font-extrabold text-xs text-brand-700 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full inline-block">
+                    <td className="py-3.5 px-4 align-top text-center">
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+                          ₹{cust.totalSpent.toLocaleString('en-IN')}
+                        </span>
+                        <span className="text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-200/80 px-2 py-0.5 rounded-full whitespace-nowrap">
                           {cust.totalOrders} {cust.totalOrders === 1 ? 'Order' : 'Orders'}
                         </span>
-                        <div className="font-bold text-slate-900 text-xs pt-0.5">
-                          ₹{cust.totalSpent.toLocaleString('en-IN')}
-                        </div>
                         {cust.totalBalance > 0 ? (
-                          <p className="text-[10px] font-bold text-red-600">
-                            Bal: ₹{cust.totalBalance}
-                          </p>
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-full whitespace-nowrap">
+                            Due: ₹{cust.totalBalance.toLocaleString('en-IN')}
+                          </span>
                         ) : (
-                          <p className="text-[10px] font-bold text-emerald-600">
-                            Fully Paid
-                          </p>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full whitespace-nowrap">
+                            ✓ Fully Paid
+                          </span>
                         )}
                       </div>
                     </td>
 
                     {/* Last Activity / Order */}
-                    <td className="py-3 px-4">
+                    <td className="py-3.5 px-4 align-top">
                       {cust.lastThreeOrders.length > 0 ? (
                         <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Link
                               href={`/admin/invoices/${cust.lastThreeOrders[0].invoiceNumber}`}
-                              className="font-mono font-bold text-xs text-brand-600 hover:underline"
+                              className="font-mono font-bold text-xs text-brand-600 hover:text-brand-800 hover:underline"
                             >
                               {cust.lastThreeOrders[0].invoiceNumber}
                             </Link>
                             {getStatusBadge(cust.lastThreeOrders[0].status)}
                           </div>
                           {cust.lastThreeOrders[0].itemsSummary && (
-                            <p className="text-[10px] text-slate-500 truncate max-w-[180px]" title={cust.lastThreeOrders[0].itemsSummary}>
+                            <p className="text-[11px] text-slate-500 truncate max-w-[210px]" title={cust.lastThreeOrders[0].itemsSummary}>
                               {cust.lastThreeOrders[0].itemsSummary}
                             </p>
                           )}
-                          <p className="text-[9px] text-slate-400">
+                          <p className="text-[10px] text-slate-400 font-medium">
                             {new Date(cust.lastThreeOrders[0].createdAt).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
@@ -403,41 +762,29 @@ export default function AdminCustomersPage() {
                           </p>
                         </div>
                       ) : (
-                        <span className="text-slate-400 text-xs">No orders yet</span>
+                        <span className="text-slate-400 text-xs italic">No orders yet</span>
                       )}
                     </td>
 
-                    {/* THREE LAST ACTIONS */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* Action 1: WhatsApp Message */}
-                        <a
-                          href={cust.actions.whatsappUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                          title="Action 1: Chat with Customer on WhatsApp"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
-                        </a>
-
-                        {/* Action 2: View Orders & Invoices History */}
+                    {/* QUICK ACTIONS */}
+                    <td className="py-3.5 px-4 align-top text-right">
+                      <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
+                        {/* Action 1: View Orders & Invoices History */}
                         <button
                           type="button"
                           onClick={() => openCustomerHistoryModal(cust)}
-                          className="bg-blue-50 hover:bg-brand-600 text-brand-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                          title="Action 2: View Past Orders & Invoices History"
+                          className="bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                          title="View Past Orders & Invoices History"
                         >
-                          <FileText className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5 text-brand-600" />
                           <span>Invoices ({cust.totalOrders})</span>
                         </button>
 
-                        {/* Action 3: New Order (POS) */}
+                        {/* Action 2: New Order (POS) */}
                         <Link
                           href={cust.actions.posNewOrderUrl}
-                          className="bg-slate-900 hover:bg-brand-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                          title="Action 3: Create New Order in Counter POS"
+                          className="bg-slate-900 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0"
+                          title="Create New Order in Counter POS"
                         >
                           <PlusCircle className="w-3.5 h-3.5" />
                           <span>New Order</span>
@@ -588,17 +935,7 @@ export default function AdminCustomersPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-between">
-              <a
-                href={selectedCustomerForHistory.actions.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Message on WhatsApp</span>
-              </a>
-
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-end">
               <Link
                 href={selectedCustomerForHistory.actions.posNewOrderUrl}
                 className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5"
