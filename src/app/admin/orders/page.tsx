@@ -116,12 +116,17 @@ function OrdersContent() {
   const [paymentTxRef, setPaymentTxRef] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [settleConfirmation, setSettleConfirmation] = useState<{
+    cleanCollected: number;
+    waived: number;
+  } | null>(null);
   const paymentAmountInputRef = useRef<HTMLInputElement | null>(null);
 
   const switchToCustomAmount = () => {
     setPaymentAmountMode('custom');
     setPaymentAmountInput('');
     setPaymentError('');
+    setSettleConfirmation(null);
     if (typeof window !== 'undefined') {
       window.requestAnimationFrame(() => {
         paymentAmountInputRef.current?.focus();
@@ -136,6 +141,7 @@ function OrdersContent() {
     setPaymentAmountInput(String(ord.balanceAmount));
     setPaymentTxRef('');
     setPaymentError('');
+    setSettleConfirmation(null);
   };
 
   useEffect(() => {
@@ -278,8 +284,8 @@ function OrdersContent() {
     }
   };
 
-  // Settle invoice directly (customer doesn't want to pay more money: waive remaining due & close to ₹0)
-  const handleSettleOrder = async (collectedOverride?: number) => {
+  // Request in-modal settlement confirmation (no browser window.confirm pop-up)
+  const requestSettleConfirmation = (collectedOverride?: number) => {
     if (!paymentModalOrder) return;
 
     const rawAmount =
@@ -300,12 +306,13 @@ function OrdersContent() {
       Math.round((paymentModalOrder.balanceAmount - cleanCollected) * 100) / 100
     );
 
-    const confirmMsg =
-      cleanCollected > 0
-        ? `Settle Invoice #${paymentModalOrder.invoiceNumber}?\n\n• Collect: ₹${cleanCollected} (${paymentMethod.replace('_', ' ').toUpperCase()})\n• Waive remaining balance: ₹${waived}\n• Set remaining Due to: ₹0 (Mark as Settled / PAID)\n\nProceed to settle?`
-        : `Settle Invoice #${paymentModalOrder.invoiceNumber}?\n\n• Waive full due balance of: ₹${waived}\n• Set remaining Due to: ₹0 (Mark as Settled / PAID)\n\nProceed to settle?`;
+    setPaymentError('');
+    setSettleConfirmation({ cleanCollected, waived });
+  };
 
-    if (typeof window !== 'undefined' && !window.confirm(confirmMsg)) return;
+  // Execute settlement via backend API
+  const executeSettle = async (cleanCollected: number, waived: number) => {
+    if (!paymentModalOrder) return;
 
     setPaymentSaving(true);
     setPaymentError('');
@@ -334,6 +341,7 @@ function OrdersContent() {
         setPaymentTxRef('');
         setPaymentAmountInput('');
         setPaymentAmountMode('full');
+        setSettleConfirmation(null);
       } else {
         setPaymentError(data.message || 'Failed to settle invoice');
       }
@@ -351,7 +359,8 @@ function OrdersContent() {
 
     if (paymentAmountMode === 'settle') {
       const raw = Number(paymentAmountInput || 0);
-      return handleSettleOrder(Number.isFinite(raw) ? raw : 0);
+      requestSettleConfirmation(Number.isFinite(raw) ? raw : 0);
+      return;
     }
 
     const rawAmount =
@@ -1310,6 +1319,7 @@ function OrdersContent() {
                               setPaymentAmountMode('full');
                               setPaymentAmountInput(String(paymentModalOrder.balanceAmount));
                               setPaymentError('');
+                              setSettleConfirmation(null);
                             }}
                             className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                               paymentAmountMode === 'full'
@@ -1336,6 +1346,7 @@ function OrdersContent() {
                               setPaymentAmountMode('settle');
                               setPaymentAmountInput('');
                               setPaymentError('');
+                              setSettleConfirmation(null);
                             }}
                             className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                               paymentAmountMode === 'settle'
@@ -1461,52 +1472,100 @@ function OrdersContent() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                      <button
-                        type="button"
-                        disabled={paymentSaving}
-                        onClick={() => setPaymentModalOrder(null)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        {/* Dedicated Settle Button (when customer doesn't want to give more money) */}
-                        {paymentAmountMode !== 'settle' && (
+                    {settleConfirmation ? (
+                      <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+                          <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                          </div>
+                          <span>Confirm Order Settlement (₹0 Balance)</span>
+                        </div>
+                        <div className="text-xs text-slate-700 space-y-1 bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Collect via {paymentMethod.replace('_', ' ').toUpperCase()}:</span>
+                            <strong className="font-extrabold text-slate-900">₹{settleConfirmation.cleanCollected}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Settlement Concession / Waived:</span>
+                            <strong className="font-extrabold text-amber-700">₹{settleConfirmation.waived}</strong>
+                          </div>
+                          <div className="flex justify-between pt-1 border-t border-slate-100">
+                            <span className="font-bold text-slate-800">Remaining Balance Due:</span>
+                            <strong className="font-extrabold text-emerald-700">₹0 (Paid &amp; Closed)</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            disabled={paymentSaving}
+                            onClick={() => setSettleConfirmation(null)}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
                           <button
                             type="button"
                             disabled={paymentSaving}
                             onClick={() =>
-                              handleSettleOrder(
-                                paymentAmountMode === 'custom' && Number.isFinite(enteredAmount)
-                                  ? clampedAmount
-                                  : 0
+                              executeSettle(
+                                settleConfirmation.cleanCollected,
+                                settleConfirmation.waived
                               )
                             }
-                            className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                            title="Customer doesn't want to pay remaining money: Settle order and waive balance to ₹0"
+                            className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-98 text-white text-xs font-extrabold shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
-                            <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-                            <span>
-                              {paymentAmountMode === 'custom' &&
-                              Number.isFinite(enteredAmount) &&
-                              clampedAmount > 0 &&
-                              clampedAmount < paymentModalOrder.balanceAmount
-                                ? `Settle at ₹${clampedAmount} (₹0 Due)`
-                                : 'Settle Bill (₹0 Due)'}
-                            </span>
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>{paymentSaving ? 'Settling...' : 'Confirm & Settle Bill'}</span>
                           </button>
-                        )}
-
-                        {/* Primary Button */}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                         <button
-                          type="submit"
-                          disabled={paymentSaving || !isValidEntered}
-                          className={`px-4 py-2 rounded-xl text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer ${
-                            paymentAmountMode === 'settle'
-                              ? 'bg-amber-600 hover:bg-amber-700'
-                              : 'bg-emerald-600 hover:bg-emerald-700'
+                          type="button"
+                          disabled={paymentSaving}
+                          onClick={() => setPaymentModalOrder(null)}
+                          className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          {/* Dedicated Settle Button (when customer doesn't want to give more money) */}
+                          {paymentAmountMode !== 'settle' && (
+                            <button
+                              type="button"
+                              disabled={paymentSaving}
+                              onClick={() =>
+                                requestSettleConfirmation(
+                                  paymentAmountMode === 'custom' && Number.isFinite(enteredAmount)
+                                    ? clampedAmount
+                                    : 0
+                                )
+                              }
+                              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                              title="Customer doesn't want to pay remaining money: Settle order and waive balance to ₹0"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                              <span>
+                                {paymentAmountMode === 'custom' &&
+                                Number.isFinite(enteredAmount) &&
+                                clampedAmount > 0 &&
+                                clampedAmount < paymentModalOrder.balanceAmount
+                                  ? `Settle at ₹${clampedAmount} (₹0 Due)`
+                                  : 'Settle Bill (₹0 Due)'}
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Primary Button */}
+                          <button
+                            type="submit"
+                            disabled={paymentSaving || !isValidEntered}
+                            className={`px-4 py-2 rounded-xl text-white text-xs font-extrabold shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer ${
+                              paymentAmountMode === 'settle'
+                                ? 'bg-amber-600 hover:bg-amber-700'
+                                : 'bg-emerald-600 hover:bg-emerald-700'
                           }`}
                         >
                           {paymentAmountMode === 'settle' ? (
@@ -1530,6 +1589,7 @@ function OrdersContent() {
                         </button>
                       </div>
                     </div>
+                  )}
                   </>
                 );
               })()}
