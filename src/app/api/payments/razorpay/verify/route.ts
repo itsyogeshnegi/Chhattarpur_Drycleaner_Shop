@@ -72,16 +72,10 @@ export async function POST(req: NextRequest) {
     const rzpOrder = await getRazorpayClient().orders.fetch(String(razorpayOrderId));
     const orderAmountPaise = Number(rzpOrder?.amount) || 0;
     const paidNowInr = Math.round(orderAmountPaise / 100);
-    const opts = calculatePaymentOptions(invoice.grandTotal, invoice.paidAmount);
 
-    // Enforce minimum 50% advance when nothing has been paid yet, or full remaining balance
-    const minRequired = opts.canChooseHalf ? opts.minHalfAmount : opts.remaining;
-    if (paidNowInr < minRequired) {
+    if (paidNowInr <= 0) {
       return NextResponse.json(
-        {
-          success: false,
-          message: `Paid amount (₹${paidNowInr}) is below minimum mandatory requirement (₹${minRequired}).`,
-        },
+        { success: false, message: 'Invalid payment amount received.' },
         { status: 400 }
       );
     }
@@ -98,7 +92,7 @@ export async function POST(req: NextRequest) {
       message:
         invoice.balanceAmount === 0
           ? 'Full payment verified and invoice marked as PAID'
-          : `50% advance payment (₹${paidNowInr}) verified! Remaining balance: ₹${invoice.balanceAmount}`,
+          : `Payment of ₹${paidNowInr} verified! Remaining balance: ₹${invoice.balanceAmount}`,
       invoice,
     });
   } catch (error: unknown) {

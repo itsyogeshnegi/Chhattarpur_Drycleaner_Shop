@@ -138,9 +138,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row antialiased">
+    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row antialiased print:bg-white print:block">
       {/* Mobile Top Header */}
-      <div className="md:hidden bg-slate-950 text-white p-3 flex items-center justify-between border-b border-slate-800 sticky top-0 z-40 shadow-sm">
+      <div className="no-print print:hidden md:hidden bg-slate-950 text-white p-3 flex items-center justify-between border-b border-slate-800 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-brand-600 text-white flex items-center justify-center font-black">
             <Sparkles className="w-3.5 h-3.5" />
@@ -163,13 +163,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/70 z-40 md:hidden backdrop-blur-xs transition-opacity"
+          className="no-print print:hidden fixed inset-0 bg-black/70 z-40 md:hidden backdrop-blur-xs transition-opacity"
         />
       )}
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed md:sticky top-0 h-screen bg-slate-950 text-white border-r border-slate-800 shrink-0 z-50 flex flex-col justify-between transition-all duration-300 ease-in-out ${
+        className={`no-print print:hidden fixed md:sticky top-0 h-screen bg-slate-950 text-white border-r border-slate-800 shrink-0 z-50 flex flex-col justify-between transition-all duration-300 ease-in-out ${
           // Mobile state: slide in drawer
           sidebarOpen ? 'translate-x-0 w-64 left-0' : '-translate-x-full md:translate-x-0'
         } ${
@@ -262,7 +262,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content Area */}
-      <main className="grow min-w-0 p-3 sm:p-4 lg:p-5 overflow-x-hidden transition-all duration-300">
+      <main className="grow min-w-0 p-3 sm:p-4 lg:p-5 overflow-x-hidden transition-all duration-300 print:p-0 print:m-0 print:overflow-visible print:bg-white">
         {children}
       </main>
     </div>

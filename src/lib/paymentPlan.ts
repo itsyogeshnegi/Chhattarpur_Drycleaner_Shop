@@ -1,17 +1,17 @@
-export type PaymentPlan = 'half' | 'full';
+export type PaymentPlan = 'full' | 'custom' | 'half';
 
 export interface PaymentOptionsSummary {
   total: number;
   alreadyPaid: number;
   remaining: number;
-  minHalfAmount: number;
-  remainingAfterHalf: number;
-  canChooseHalf: boolean;
+  minHalfAmount?: number;
+  remainingAfterHalf?: number;
+  canChooseHalf?: boolean;
 }
 
 /**
- * Computes mandatory minimum 50% advance vs 100% full payment options
- * from an order's grandTotal and already-paid balance.
+ * Computes payment options from an order's grandTotal and already-paid balance.
+ * Supports 100% full payment, custom advance (even ₹0), or remaining balance.
  */
 export function calculatePaymentOptions(
   grandTotal: number,
@@ -21,7 +21,6 @@ export function calculatePaymentOptions(
   const alreadyPaid = Math.min(total, Math.max(0, Math.round(Number(paidAmount) || 0)));
   const remaining = Math.max(0, total - alreadyPaid);
   const minHalfAmount = Math.ceil(total * 0.5);
-  const canChooseHalf = alreadyPaid === 0 && remaining > 1;
   const remainingAfterHalf = Math.max(0, total - minHalfAmount);
 
   return {
@@ -30,18 +29,24 @@ export function calculatePaymentOptions(
     remaining,
     minHalfAmount,
     remainingAfterHalf,
-    canChooseHalf,
+    canChooseHalf: false, // 50% advance mandatory restriction removed
   };
 }
 
 export function resolvePlanPayableAmount(
   grandTotal: number,
   paidAmount: number,
-  plan: PaymentPlan
-): { amount: number; effectivePlan: PaymentPlan } {
+  plan: PaymentPlan,
+  customAmount?: number
+): { amount: number; effectivePlan: 'full' | 'custom' } {
   const opts = calculatePaymentOptions(grandTotal, paidAmount);
-  if (plan === 'half' && opts.canChooseHalf) {
-    return { amount: opts.minHalfAmount, effectivePlan: 'half' };
+  if (plan === 'custom') {
+    const raw = customAmount !== undefined && customAmount !== null ? Number(customAmount) : 0;
+    const clamped = Math.max(
+      0,
+      Math.min(opts.remaining, Math.round((Number.isFinite(raw) ? raw : 0) * 100) / 100)
+    );
+    return { amount: clamped, effectivePlan: 'custom' };
   }
   return { amount: opts.remaining, effectivePlan: 'full' };
 }

@@ -44,24 +44,56 @@ input[type="number"] {
 
 /* Clean Print Styles for Invoices (A4 & POS Thermal Slip) */
 @media print {
+  @page {
+    margin: 10mm 12mm;
+    size: auto;
+  }
+
+  html,
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .no-print, header, footer, nav, button, .action-bar {
+
+  .no-print,
+  .no-print *,
+  header,
+  footer,
+  nav,
+  aside,
+  button,
+  .action-bar,
+  [data-no-print] {
     display: none !important;
   }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    background: transparent !important;
+  }
+
   .printable-area {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
     width: 100% !important;
-    margin: 0 !important;
-    padding: 10px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    background: #ffffff !important;
   }
+
   .thermal-slip {
     width: 80mm !important;
     font-size: 11px !important;

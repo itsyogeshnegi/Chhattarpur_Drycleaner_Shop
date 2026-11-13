@@ -138,7 +138,9 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const [invoice, setInvoice] = useState<OrderInvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
-  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('half');
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('full');
+  const [customPaymentInput, setCustomPaymentInput] = useState<string>('');
+  const [payOnDeliveryConfirmed, setPayOnDeliveryConfirmed] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [razorpayMeBaseUrl, setRazorpayMeBaseUrl] = useState(DEFAULT_RAZORPAY_ME_URL);
   const [serverCheckoutEnabled, setServerCheckoutEnabled] = useState(false);
@@ -232,10 +234,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     setPaymentError('');
     setPopupBlocked(false);
 
-    const { effectivePlan } = resolvePlanPayableAmount(
+    const customVal = customPaymentInput === '' ? 0 : Number(customPaymentInput);
+    const { amount: currentPayable, effectivePlan } = resolvePlanPayableAmount(
       invoice.grandTotal,
       invoice.paidAmount,
-      paymentPlan
+      paymentPlan,
+      paymentPlan === 'custom' ? customVal : undefined
     );
 
     try {
@@ -246,12 +250,19 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         body: JSON.stringify({
           invoiceId: invoice.invoiceNumber,
           paymentPlan: effectivePlan,
+          customAmount: paymentPlan === 'custom' ? customVal : undefined,
         }),
       });
       const orderData = await res.json();
 
       if (!orderData.success) {
         setPaymentError(orderData.message || 'Failed to initiate payment');
+        setPaying(false);
+        return;
+      }
+
+      if (orderData.mode === 'pay_on_delivery') {
+        setPayOnDeliveryConfirmed(true);
         setPaying(false);
         return;
       }
@@ -286,7 +297,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         currency: orderData.currency || 'INR',
         name: "AL-HARAM Drycleaner's",
         description: `Invoice #${invoice.invoiceNumber} (${
-          effectivePlan === 'half' ? '50% Mandatory Advance' : 'Full Payment'
+          effectivePlan === 'custom' ? `Custom: ₹${currentPayable}` : 'Full Payment'
         })`,
         order_id: orderData.orderId,
         prefill: {
@@ -379,10 +390,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   }
 
   const paymentOptions = calculatePaymentOptions(invoice.grandTotal, invoice.paidAmount);
+  const customVal = customPaymentInput === '' ? 0 : Number(customPaymentInput);
   const { amount: payableAmount, effectivePlan } = resolvePlanPayableAmount(
     invoice.grandTotal,
     invoice.paidAmount,
-    paymentPlan
+    paymentPlan,
+    paymentPlan === 'custom' ? customVal : undefined
   );
   const directRazorpayMeUrl = buildRazorpayMeUrl(razorpayMeBaseUrl);
   const isCheckoutKeyConfigured =
@@ -421,10 +434,10 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 print:bg-white print:p-0 print:m-0">
+      <div className="max-w-3xl mx-auto space-y-6 print:max-w-none print:m-0 print:space-y-0">
         {/* Navigation & Action Bar (Hidden when printing) */}
-        <div className="no-print flex flex-wrap justify-between items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="no-print print:hidden flex flex-wrap justify-between items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <Link
             href="/track"
             className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 transition"
@@ -461,12 +474,24 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
               <p className="font-bold">
                 {invoice.paymentStatus === 'paid'
                   ? 'Full Payment Settled Successfully!'
-                  : `50% Advance Payment Confirmed (₹${invoice.paidAmount})!`}
+                  : `Advance Payment Confirmed (₹${invoice.paidAmount})!`}
               </p>
               <p className="text-xs text-emerald-700">
                 {invoice.paymentStatus === 'paid'
                   ? 'Your transaction has been confirmed and your invoice is marked as PAID.'
                   : `Advance received via Razorpay. Remaining balance of ₹${invoice.balanceAmount} is due upon delivery (or payable below anytime).`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {payOnDeliveryConfirmed && (
+          <div className="no-print bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-2xl flex items-center gap-3 text-sm">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div>
+              <p className="font-bold">Pay on Doorstep Delivery Confirmed!</p>
+              <p className="text-xs text-emerald-700">
+                No online payment required upfront. Full balance of ₹{invoice.balanceAmount} can be paid via Cash or UPI when our delivery rider arrives with your clothes.
               </p>
             </div>
           </div>
@@ -504,7 +529,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         )}
 
         {/* PRINTABLE OFFICIAL INVOICE CARD */}
-        <div className="printable-area bg-white rounded-3xl border border-slate-200/90 shadow-md p-6 sm:p-10 space-y-8">
+        <div className="printable-area bg-white rounded-3xl border border-slate-200/90 shadow-md p-6 sm:p-10 space-y-8 print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none">
           {/* Top Store Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-slate-200 pb-8">
             <div className="space-y-2">
@@ -707,7 +732,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           )}
 
           {/* ONLINE RAZORPAY PAYMENT (Hidden when printing) */}
-          {invoice.paymentStatus !== 'paid' && payableAmount > 0 && (
+          {invoice.paymentStatus !== 'paid' && (
             <div className="no-print space-y-3">
               {paymentError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-medium flex items-center gap-2">
@@ -716,7 +741,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {razorpayMeOpened && (
+              {razorpayMeOpened && payableAmount > 0 && (
                 <div className="bg-sky-50 border border-sky-200 text-sky-900 p-4 rounded-2xl space-y-3 text-xs">
                   <div className="space-y-1">
                     <p className="font-bold text-sm">
@@ -800,81 +825,138 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                     <div className="flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-amber-400" />
                       <span className="font-extrabold text-base">
-                        {paymentOptions.canChooseHalf
-                          ? 'Choose Payment Option (1 Option Mandatory)'
-                          : 'Pay Remaining Invoice Balance via Razorpay'}
+                        Flexible Payment Options
                       </span>
                     </div>
                     <p className="text-xs text-slate-300">
-                      {paymentOptions.canChooseHalf
-                        ? `Select either 50% Mandatory Advance (₹${paymentOptions.minHalfAmount}) or Full Payment (₹${paymentOptions.remaining}) to confirm your order.`
-                        : `Advance of ₹${paymentOptions.alreadyPaid} already received — pay remaining ₹${paymentOptions.remaining} via UPI, Cards, or Net Banking.`}
+                      Pay the full balance online now, enter a custom advance amount, or choose ₹0 to pay upon doorstep delivery.
                     </p>
                   </div>
                   <span className="text-[11px] font-mono font-bold text-amber-300 bg-white/10 px-2.5 py-1 rounded-lg border border-white/15">
-                    Bill: ₹{invoice.grandTotal}
+                    Due: ₹{paymentOptions.remaining}
                   </span>
                 </div>
 
-                {paymentOptions.canChooseHalf && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPlan('half')}
-                      className={`text-left p-4 rounded-xl border transition cursor-pointer ${
-                        paymentPlan === 'half'
-                          ? 'bg-amber-400/15 border-amber-400 ring-2 ring-amber-400/40'
-                          : 'bg-white/5 border-white/15 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
-                          Option 1 • Mandatory Min
-                        </span>
-                        <span
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            paymentPlan === 'half' ? 'border-amber-400 bg-amber-400' : 'border-slate-400'
-                          }`}
-                        >
-                          {paymentPlan === 'half' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
-                        </span>
-                      </div>
-                      <p className="text-base font-black text-white mt-1">
-                        50% Payment — ₹{paymentOptions.minHalfAmount}
-                      </p>
-                      <p className="text-[11px] text-slate-300 mt-0.5">
-                        Pay ₹{paymentOptions.minHalfAmount} now; ₹{paymentOptions.remainingAfterHalf} due on delivery
-                      </p>
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentPlan('full');
+                    }}
+                    className={`text-left p-4 rounded-xl border transition cursor-pointer ${
+                      paymentPlan === 'full'
+                        ? 'bg-emerald-400/15 border-emerald-400 ring-2 ring-emerald-400/40'
+                        : 'bg-white/5 border-white/15 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                        Option 1 • Full Payment
+                      </span>
+                      <span
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          paymentPlan === 'full' ? 'border-emerald-400 bg-emerald-400' : 'border-slate-400'
+                        }`}
+                      >
+                        {paymentPlan === 'full' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                      </span>
+                    </div>
+                    <p className="text-base font-black text-white mt-1">
+                      Full Payment — ₹{paymentOptions.remaining}
+                    </p>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      100% settled now • Zero balance remaining on delivery
+                    </p>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPlan('full')}
-                      className={`text-left p-4 rounded-xl border transition cursor-pointer ${
-                        paymentPlan === 'full'
-                          ? 'bg-emerald-400/15 border-emerald-400 ring-2 ring-emerald-400/40'
-                          : 'bg-white/5 border-white/15 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
-                          Option 2 • Complete Bill
-                        </span>
-                        <span
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            paymentPlan === 'full' ? 'border-emerald-400 bg-emerald-400' : 'border-slate-400'
-                          }`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentPlan('custom');
+                      if (!customPaymentInput) setCustomPaymentInput('0');
+                    }}
+                    className={`text-left p-4 rounded-xl border transition cursor-pointer ${
+                      paymentPlan === 'custom'
+                        ? 'bg-amber-400/15 border-amber-400 ring-2 ring-amber-400/40'
+                        : 'bg-white/5 border-white/15 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
+                        Option 2 • Custom Payment
+                      </span>
+                      <span
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          paymentPlan === 'custom' ? 'border-amber-400 bg-amber-400' : 'border-slate-400'
+                        }`}
+                      >
+                        {paymentPlan === 'custom' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                      </span>
+                    </div>
+                    <p className="text-base font-black text-white mt-1">
+                      Custom Advance / ₹0
+                    </p>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Enter any amount (₹0 to pay on delivery)
+                    </p>
+                  </button>
+                </div>
+
+                {paymentPlan === 'custom' && (
+                  <div className="bg-white/5 border border-white/15 rounded-xl p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-amber-300">
+                        Enter Custom Amount (₹0 to ₹{paymentOptions.remaining}):
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setCustomPaymentInput('0')}
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 transition cursor-pointer"
                         >
-                          {paymentPlan === 'full' && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
-                        </span>
+                          ₹0 (Pay on Delivery)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomPaymentInput(String(Math.ceil(paymentOptions.remaining * 0.5)))}
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 transition cursor-pointer"
+                        >
+                          ₹{Math.ceil(paymentOptions.remaining * 0.5)} (50%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomPaymentInput(String(paymentOptions.remaining))}
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 transition cursor-pointer"
+                        >
+                          ₹{paymentOptions.remaining} (Full)
+                        </button>
                       </div>
-                      <p className="text-base font-black text-white mt-1">
-                        Full Payment — ₹{paymentOptions.remaining}
-                      </p>
-                      <p className="text-[11px] text-slate-300 mt-0.5">
-                        100% settled now • ₹0 balance on delivery
-                      </p>
-                    </button>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={paymentOptions.remaining}
+                        value={customPaymentInput}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setCustomPaymentInput('');
+                          } else {
+                            const val = Math.max(0, Math.min(paymentOptions.remaining, Number(raw) || 0));
+                            setCustomPaymentInput(String(val));
+                          }
+                        }}
+                        placeholder={`0 to ${paymentOptions.remaining}`}
+                        className="w-full pl-8 pr-4 py-2.5 bg-slate-900 border border-amber-400/60 rounded-xl text-white font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {payableAmount === 0
+                        ? `💡 ₹0 selected: You will pay the full balance of ₹${paymentOptions.remaining} in cash/UPI on doorstep delivery.`
+                        : `💡 ₹${payableAmount} will be paid now online. Remaining balance of ₹${Math.max(0, paymentOptions.remaining - payableAmount)} will be due on delivery.`}
+                    </p>
                   </div>
                 )}
 
@@ -882,7 +964,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                   <p className="text-xs text-slate-300 text-center sm:text-left">
                     Paying now:{' '}
                     <span className="font-black text-white">₹{payableAmount}</span>{' '}
-                    ({effectivePlan === 'half' ? '50% Advance' : paymentOptions.alreadyPaid > 0 ? 'Remaining Balance' : 'Full 100%'}) • Ref:{' '}
+                    ({effectivePlan === 'custom' && payableAmount === 0
+                      ? 'Pay on Delivery'
+                      : effectivePlan === 'custom'
+                      ? `Custom Amount (₹${payableAmount})`
+                      : 'Full Balance'}
+                    ) • Ref:{' '}
                     <span className="font-mono font-bold text-amber-300">{invoice.invoiceNumber}</span>
                   </p>
 
@@ -890,19 +977,19 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                     <button
                       onClick={handleRazorpayPayment}
                       disabled={paying}
-                      className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+                      className={`w-full sm:w-auto font-black py-3 px-5 rounded-xl transition shadow-md disabled:opacity-50 text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
+                        payableAmount === 0
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                          : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                      }`}
                     >
                       {paying
-                        ? 'Connecting Razorpay...'
-                        : `Pay ₹${payableAmount} (${
-                            effectivePlan === 'half'
-                              ? '50% Advance'
-                              : paymentOptions.alreadyPaid > 0
-                              ? 'Remaining Balance'
-                              : 'Full Payment'
-                          }) via Razorpay`}
+                        ? 'Processing...'
+                        : payableAmount === 0
+                        ? 'Confirm Pay on Delivery (₹0 Now)'
+                        : `Pay ₹${payableAmount} via Razorpay`}
                     </button>
-                    {!isCheckoutKeyConfigured && (
+                    {payableAmount > 0 && !isCheckoutKeyConfigured && (
                       <a
                         href={directRazorpayMeUrl}
                         target="_blank"

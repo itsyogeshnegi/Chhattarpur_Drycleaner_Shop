@@ -239,8 +239,8 @@ export default function PickupBookingSection() {
                         <p className="text-[11px] font-bold text-slate-800">
                           Total Estimate: ₹{opts.total}
                         </p>
-                        <p className="text-[10px] font-semibold text-amber-700">
-                          Mandatory Payment Option: 50% Advance (₹{opts.minHalfAmount}) or Full (₹{opts.total})
+                        <p className="text-[10px] font-semibold text-emerald-700">
+                          Flexible Payment: Pay Full (₹{opts.total}), Custom Advance, or Pay ₹0 on Delivery
                         </p>
                       </div>
                     );
@@ -254,7 +254,7 @@ export default function PickupBookingSection() {
                       className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-sm"
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Pay Now (50% or Full)</span>
+                      <span>Pay Online (Full / Custom)</span>
                     </Link>
                   )}
 

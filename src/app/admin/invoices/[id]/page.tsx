@@ -91,9 +91,9 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto print:max-w-none print:m-0 print:space-y-0 print:w-full">
       {/* Top Toolbar (Hidden on print) */}
-      <div className="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="no-print print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
         <Link
           href="/admin/orders"
           className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
@@ -140,7 +140,7 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
 
       {/* INVOICE DISPLAY CANVAS */}
       <div
-        className={`printable-area bg-white rounded-3xl border p-8 sm:p-10 shadow-sm space-y-6 ${
+        className={`printable-area bg-white rounded-3xl border p-8 sm:p-10 shadow-sm space-y-6 print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none ${
           activeInvoiceType === 'internal'
             ? 'border-amber-400 ring-2 ring-amber-300/40'
             : 'border-slate-200'

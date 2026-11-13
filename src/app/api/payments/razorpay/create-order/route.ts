@@ -16,14 +16,14 @@ import mongoose from 'mongoose';
 
 export async function POST(req: NextRequest) {
   try {
-    const { invoiceId, paymentPlan = 'full' } = await req.json();
+    const { invoiceId, paymentPlan = 'full', customAmount } = await req.json();
     if (!invoiceId) {
       return NextResponse.json({ success: false, message: 'Invoice ID required' }, { status: 400 });
     }
 
-    if (paymentPlan !== 'half' && paymentPlan !== 'full') {
+    if (paymentPlan !== 'half' && paymentPlan !== 'full' && paymentPlan !== 'custom') {
       return NextResponse.json(
-        { success: false, message: 'Invalid payment plan. Choose 50% advance or full payment.' },
+        { success: false, message: 'Invalid payment plan. Choose full payment or custom amount.' },
         { status: 400 }
       );
     }
@@ -57,21 +57,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (paymentPlan === 'half' && opts.alreadyPaid > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Advance payment is already received. Please settle the remaining balance.',
-        },
-        { status: 400 }
-      );
-    }
-
     const { amount: payableAmount, effectivePlan } = resolvePlanPayableAmount(
       invoice.grandTotal,
       invoice.paidAmount,
-      paymentPlan as PaymentPlan
+      paymentPlan as PaymentPlan,
+      customAmount !== undefined && customAmount !== null ? Number(customAmount) : undefined
     );
+
+    // If 0 is chosen (Pay on Delivery / Pay on Pickup), confirm directly without Razorpay API call
+    if (payableAmount === 0) {
+      return NextResponse.json({
+        success: true,
+        mode: 'pay_on_delivery',
+        paymentPlan: effectivePlan,
+        payableAmount: 0,
+        remainingAfterPayment: opts.remaining,
+        invoiceNumber: invoice.invoiceNumber,
+        message: 'Order confirmed for Pay on Delivery. No online payment needed upfront.',
+        customer: invoice.customer,
+      });
+    }
+
     const amountInPaise = Math.round(payableAmount * 100);
     const remainingAfterPayment = Math.max(0, opts.remaining - payableAmount);
     const razorpayMePayUrl = buildRazorpayMePayUrl(settings?.razorpayMeUrl);
