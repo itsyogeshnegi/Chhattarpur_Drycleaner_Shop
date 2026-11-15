@@ -129,6 +129,12 @@ npm run lint         # ESLint check
 
 ## Change Log
 
+- **2026-11-15:** Refined and polished the pricing table UI design in [`RateCalculator.tsx`](src/components/RateCalculator.tsx) to eliminate visual clutter and text wrapping:
+  - Streamlined standard item rows by replacing heavy green rectangular boxes on 50% advances with a crisp, subtle sub-line (`50% Adv: ₹...` in emerald green) below each rate.
+  - Fixed range items (e.g. `Sherwani`, `Saree`, `Lehenga`, `Gown`, `Suits`) to render a sleek, single-line pill (`[📞 Owner will connect with you]`) with `whitespace-nowrap` and soft champagne styling, eliminating awkward 2-line text wraps and oversized oval bubbles.
+  - Removed repetitive duplicate text from garment descriptions and restored consistent brand action buttons (`+ DC` in blue, `+ Iron` in slate).
+  - Modernized table headers to clean stacked titles (`Dry Clean / Rate & 50% Adv` and `Steam Iron / Rate & 50% Adv`).
+
 - **2026-11-15:** Implemented specialty range-price garment handling with "Owner will connect with you" messaging and 50% advance display for regular items per user specifications:
   - Created [`src/lib/servicePricing.ts`](src/lib/servicePricing.ts) identifying range-price items: Women's `Suit (3Pcs)`, Women's `Suit (2Pcs)`, `Saree`, `Lehenga`, `Gown`, and Men's `Sherwani`.
   - Updated [`RateCalculator.tsx`](src/components/RateCalculator.tsx) to hide fixed rates and 50% amounts for range items, displaying prominent **"Owner will connect with you"** badges and starting price ranges, while displaying both full rates and 50% advance calculations (`50% Adv: ₹...`) on all standard fixed items.

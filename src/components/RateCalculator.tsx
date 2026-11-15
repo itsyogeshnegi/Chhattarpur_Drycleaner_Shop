@@ -221,23 +221,23 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
             </div>
 
             {/* Table Card matching reference */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                  <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                     <tr>
                       <th className="py-3.5 px-5">Garment / Item</th>
                       <th className="py-3.5 px-4 text-center">
-                        <div>Dry Clean Rate</div>
-                        <div className="text-[10px] font-semibold text-emerald-600 normal-case tracking-normal">
-                          Full / 50% Adv
-                        </div>
+                        <span className="text-slate-700 font-bold">Dry Clean</span>
+                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                          Rate &amp; 50% Adv
+                        </span>
                       </th>
                       <th className="py-3.5 px-4 text-center">
-                        <div>Steam Iron Rate</div>
-                        <div className="text-[10px] font-semibold text-emerald-600 normal-case tracking-normal">
-                          Full / 50% Adv
-                        </div>
+                        <span className="text-slate-700 font-bold">Steam Iron</span>
+                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                          Rate &amp; 50% Adv
+                        </span>
                       </th>
                       <th className="py-3.5 px-5 text-right">Add to Bill</th>
                     </tr>
@@ -255,7 +255,7 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                         return (
                           <tr
                             key={item._id || item.id || `${item.category}-${item.name}-${idx}`}
-                            className="hover:bg-sky-50/30 transition group"
+                            className="hover:bg-slate-50/70 transition group"
                           >
                             <td className="py-3.5 px-5">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -264,41 +264,32 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                                   {item.unit}
                                 </span>
                                 {isRange && (
-                                  <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
-                                    <PhoneCall className="w-2.5 h-2.5" />
-                                    Range Item
+                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                    Specialty Fabric
                                   </span>
                                 )}
                               </div>
-                              {isRange ? (
-                                <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                                  {item.rateRangeText || 'Owner will connect with you for exact price'}
+                              {item.rateRangeText && (
+                                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+                                  {item.rateRangeText}
                                 </p>
-                              ) : (
-                                item.rateRangeText && (
-                                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                    {item.rateRangeText}
-                                  </p>
-                                )
                               )}
                             </td>
 
                             <td className="py-3.5 px-4 text-center">
                               {isRange ? (
                                 <div className="flex flex-col items-center justify-center">
-                                  <span className="text-[11px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full inline-block shadow-2xs">
-                                    Owner will connect with you
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 font-medium mt-0.5">
-                                    {item.rateRangeText ? item.rateRangeText.split('|')[0]?.trim() : `Starts from ₹${item.dryCleanRate}`}
+                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-2.5 py-1 rounded-lg whitespace-nowrap shadow-2xs">
+                                    <PhoneCall className="w-3 h-3 text-amber-600 shrink-0" />
+                                    <span>Owner will connect with you</span>
                                   </span>
                                 </div>
                               ) : (
-                                <div className="flex flex-col items-center justify-center">
-                                  <span className="font-black text-slate-800 text-sm">₹{item.dryCleanRate}</span>
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap">
+                                <div className="text-center">
+                                  <div className="font-extrabold text-slate-900 text-sm">₹{item.dryCleanRate}</div>
+                                  <div className="text-[11px] font-semibold text-emerald-600 mt-0.5 whitespace-nowrap">
                                     50% Adv: ₹{Math.ceil(item.dryCleanRate * 0.5)}
-                                  </span>
+                                  </div>
                                 </div>
                               )}
                             </td>
@@ -307,13 +298,9 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                               {isRange ? (
                                 item.steamIronRate && item.steamIronRate > 0 ? (
                                   <div className="flex flex-col items-center justify-center">
-                                    <span className="text-[11px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full inline-block shadow-2xs">
-                                      Owner will connect with you
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 font-medium mt-0.5">
-                                      {item.rateRangeText && item.rateRangeText.includes('|')
-                                        ? item.rateRangeText.split('|')[1]?.trim()
-                                        : `Starts from ₹${item.steamIronRate}`}
+                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-2.5 py-1 rounded-lg whitespace-nowrap shadow-2xs">
+                                      <PhoneCall className="w-3 h-3 text-amber-600 shrink-0" />
+                                      <span>Owner will connect with you</span>
                                     </span>
                                   </div>
                                 ) : (
@@ -321,11 +308,11 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                                 )
                               ) : (
                                 item.steamIronRate && item.steamIronRate > 0 ? (
-                                  <div className="flex flex-col items-center justify-center">
-                                    <span className="font-black text-slate-700 text-sm">₹{item.steamIronRate}</span>
-                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap">
+                                  <div className="text-center">
+                                    <div className="font-extrabold text-slate-700 text-sm">₹{item.steamIronRate}</div>
+                                    <div className="text-[11px] font-semibold text-emerald-600 mt-0.5 whitespace-nowrap">
                                       50% Adv: ₹{Math.ceil(item.steamIronRate * 0.5)}
-                                    </span>
+                                    </div>
                                   </div>
                                 ) : (
                                   <span className="text-slate-300 font-normal">&mdash;</span>
@@ -337,24 +324,16 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                               <div className="inline-flex items-center gap-1.5 justify-end">
                                 <button
                                   onClick={() => addToCart(item, 'dry_clean')}
-                                  className={`font-bold text-xs px-2.5 py-1 rounded-md border transition cursor-pointer ${
-                                    isRange
-                                      ? 'bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 border-amber-200'
-                                      : 'bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 border-brand-200'
-                                  }`}
-                                  title={isRange ? 'Add Range Item to Quote' : 'Add Dry Clean to Estimate'}
+                                  className="bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 font-bold text-xs px-2.5 py-1.5 rounded-lg border border-brand-200 transition cursor-pointer shadow-2xs"
+                                  title="Add Dry Clean to Estimate"
                                 >
                                   + DC
                                 </button>
                                 {item.steamIronRate && item.steamIronRate > 0 ? (
                                   <button
                                     onClick={() => addToCart(item, 'steam_iron')}
-                                    className={`font-bold text-xs px-2.5 py-1 rounded-md border transition cursor-pointer ${
-                                      isRange
-                                        ? 'bg-amber-50 hover:bg-amber-800 hover:text-white text-amber-800 border-amber-200'
-                                        : 'bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 border-slate-200'
-                                    }`}
-                                    title={isRange ? 'Add Range Item to Quote' : 'Add Steam Press to Estimate'}
+                                    className="bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 font-bold text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 transition cursor-pointer shadow-2xs"
+                                    title="Add Steam Press to Estimate"
                                   >
                                     + Iron
                                   </button>
