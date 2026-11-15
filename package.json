@@ -20,6 +20,7 @@
     "razorpay": "^2.9.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "resend": "^6.38.0",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
@@ -34,4 +35,3 @@
     "typescript": "^5.7.2"
   }
 }
-

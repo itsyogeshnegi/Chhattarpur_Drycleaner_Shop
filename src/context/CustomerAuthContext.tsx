@@ -14,8 +14,8 @@ interface CustomerAuthContextType {
   customer: CustomerUser | null;
   isLoading: boolean;
   isAuthModalOpen: boolean;
-  authModalMode: 'register' | 'login';
-  openAuthModal: (mode?: 'register' | 'login') => void;
+  authModalMode: 'register' | 'login' | 'forgot';
+  openAuthModal: (mode?: 'register' | 'login' | 'forgot') => void;
   closeAuthModal: () => void;
   setCustomer: (customer: CustomerUser | null) => void;
   logout: () => Promise<void>;
@@ -28,7 +28,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
   const [customer, setCustomer] = useState<CustomerUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'register' | 'login'>('register');
+  const [authModalMode, setAuthModalMode] = useState<'register' | 'login' | 'forgot'>('register');
 
   const checkAuth = useCallback(async () => {
     try {
@@ -54,7 +54,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     checkAuth();
   }, [checkAuth]);
 
-  const openAuthModal = useCallback((mode: 'register' | 'login' = 'register') => {
+  const openAuthModal = useCallback((mode: 'register' | 'login' | 'forgot' = 'register') => {
     setAuthModalMode(mode);
     setIsAuthModalOpen(true);
   }, []);
