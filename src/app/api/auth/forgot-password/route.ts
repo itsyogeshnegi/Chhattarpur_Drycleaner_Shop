@@ -67,15 +67,62 @@ export async function POST(req: NextRequest) {
 
     const customerEmail: string = user.email;
 
+    // Daily limit: Maximum 2 password reset OTP requests per user per 24 hours (1 day).
+    // If 2 attempts have already been made, strictly DO NOT call the Resend API.
+    const MAX_DAILY_RESETS = 2;
+    const WINDOW_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const now = new Date();
+
+    const windowStart = user.resetPasswordDailyWindowStart
+      ? new Date(user.resetPasswordDailyWindowStart)
+      : null;
+
+    const isWindowActive =
+      windowStart !== null && now.getTime() - windowStart.getTime() < WINDOW_DURATION_MS;
+
+    const currentAttempts = isWindowActive ? (user.resetPasswordDailyAttempts || 0) : 0;
+
+    // Strict condition: Block any request beyond 2 attempts and prevent calling Resend API
+    if (currentAttempts >= MAX_DAILY_RESETS) {
+      const resetTime = windowStart
+        ? new Date(windowStart.getTime() + WINDOW_DURATION_MS)
+        : new Date(now.getTime() + WINDOW_DURATION_MS);
+      const remainingMs = Math.max(0, resetTime.getTime() - now.getTime());
+      const hoursRemaining = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+
+      console.warn(
+        `[Forgot Password Blocked] User ${user.userId} (${customerEmail}) exceeded daily limit of ${MAX_DAILY_RESETS} attempts (${currentAttempts} used). Resend API was NOT called.`
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          limitReached: true,
+          remainingAttempts: 0,
+          message: `Daily limit reached. You can only request a password reset OTP 2 times in 24 hours. Please try again in approximately ${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''} or contact store support.`,
+        },
+        { status: 429 }
+      );
+    }
+
+    const newAttemptCount = isWindowActive ? currentAttempts + 1 : 1;
+    const remainingAttemptsAfterThis = Math.max(0, MAX_DAILY_RESETS - newAttemptCount);
+
     // Generate 6-digit numeric OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     user.resetPasswordOtp = otp;
     user.resetPasswordOtpExpires = expiry;
+    user.resetPasswordDailyAttempts = newAttemptCount;
+    if (!isWindowActive) {
+      user.resetPasswordDailyWindowStart = now;
+    }
     await user.save();
 
-    console.log(`[Forgot Password] Generated OTP for user ${user.userId} (${customerEmail}): ${otp}`);
+    console.log(
+      `[Forgot Password] Generated OTP for user ${user.userId} (${customerEmail}): ${otp} (Daily attempt: ${newAttemptCount}/${MAX_DAILY_RESETS})`
+    );
 
     // Send email strictly via Resend to the customer's email
     const emailResult = await sendPasswordResetOtpEmail({
@@ -85,6 +132,10 @@ export async function POST(req: NextRequest) {
     });
 
     const masked = maskEmail(customerEmail);
+    const attemptNotice =
+      remainingAttemptsAfterThis > 0
+        ? `(${remainingAttemptsAfterThis} reset request remaining today)`
+        : `(Daily limit reached: 2 of 2 used)`;
 
     if (!emailResult.success) {
       // In Resend test tier with onboarding@resend.dev, emails can only be sent to the verified account email.
@@ -97,10 +148,12 @@ export async function POST(req: NextRequest) {
       if (isResendRestriction) {
         return NextResponse.json({
           success: true,
-          message: `OTP generated! (Resend sandbox notice: your test OTP is ${otp}). In production with a verified domain, this sends to ${masked}.`,
+          message: `OTP generated! (Resend sandbox notice: your test OTP is ${otp}). In production with a verified domain, this sends to ${masked}. ${attemptNotice}`,
           maskedEmail: masked,
           email: customerEmail,
           devOtp: otp,
+          remainingAttempts: remainingAttemptsAfterThis,
+          attemptsUsedToday: newAttemptCount,
         });
       }
 
@@ -117,9 +170,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `A 6-digit reset code has been sent to your Gmail (${masked}). Please check your inbox and spam folder.`,
+      message: `A 6-digit reset code has been sent to your Gmail (${masked}). ${attemptNotice}`,
       maskedEmail: masked,
       email: customerEmail,
+      remainingAttempts: remainingAttemptsAfterThis,
+      attemptsUsedToday: newAttemptCount,
     });
   } catch (error: unknown) {
     console.error('Forgot password error:', error);

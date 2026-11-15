@@ -70,6 +70,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
 
   // Math CAPTCHA State (used only for Sign Up)
   const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
@@ -105,6 +106,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
     setShowPassword(false);
     setShowNewPassword(false);
     setResendCooldown(0);
+    setDailyLimitReached(false);
   }, []);
 
   // Handler for closing modal that always cleans data and restores base mode
@@ -310,8 +312,14 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
         setForgotMaskedEmail(data.maskedEmail || target);
         setSuccessMsg(data.message);
         setResendCooldown(45);
+        if (data.remainingAttempts === 0) {
+          setDailyLimitReached(true);
+        }
         setMode('forgot_otp');
       } else {
+        if (data.limitReached) {
+          setDailyLimitReached(true);
+        }
         setError(data.message || 'Unable to send reset OTP. Please check your credentials.');
       }
     } catch {
@@ -448,7 +456,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
               {!isForgotMode
                 ? 'Required before booking your free doorstep pickup so you can track clothes in real-time.'
                 : mode === 'forgot_request'
-                ? 'We will send a 6-digit OTP verification code to your registered email via Resend.'
+                ? 'We will send a 6-digit OTP verification code to your registered email (max 2 daily requests).'
                 : mode === 'forgot_otp'
                 ? `Enter the 6-digit verification code sent to ${forgotMaskedEmail || 'your email'}.`
                 : 'Create a new, strong password with at least 6 characters.'}
@@ -796,7 +804,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                     autoFocus
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
-                    We will send a 6-digit OTP verification code to your registered Gmail address.
+                    We will send a 6-digit OTP verification code to your registered Gmail address (maximum 2 requests per day).
                   </p>
                 </div>
 
@@ -806,7 +814,7 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                   className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm py-3 rounded-xl transition shadow-md shadow-brand-500/25 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   {loading ? (
-                    <span>Sending OTP via Resend...</span>
+                    <span>Sending 6-Digit Code...</span>
                   ) : (
                     <>
                       <span>Send 6-Digit Reset Code</span>
@@ -849,7 +857,11 @@ export default function CustomerAuthModal({ onSuccess }: CustomerAuthModalProps)
                       <KeyRound className="w-3.5 h-3.5 text-brand-600" />
                       <span>Enter 6-Digit OTP *</span>
                     </label>
-                    {resendCooldown > 0 ? (
+                    {dailyLimitReached ? (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Daily Limit Reached (2/2)
+                      </span>
+                    ) : resendCooldown > 0 ? (
                       <span className="text-[10px] font-semibold text-slate-400">
                         Resend in {resendCooldown}s
                       </span>

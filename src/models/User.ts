@@ -10,6 +10,8 @@ export interface IUser extends Document {
   isActive: boolean;
   resetPasswordOtp?: string;
   resetPasswordOtpExpires?: Date;
+  resetPasswordDailyAttempts?: number;
+  resetPasswordDailyWindowStart?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +27,8 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     resetPasswordOtp: { type: String },
     resetPasswordOtpExpires: { type: Date },
+    resetPasswordDailyAttempts: { type: Number, default: 0 },
+    resetPasswordDailyWindowStart: { type: Date },
   },
   { timestamps: true }
 );
