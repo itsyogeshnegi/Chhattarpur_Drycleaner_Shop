@@ -6,6 +6,7 @@ export interface IServiceItem extends Document {
   dryCleanRate: number;
   steamIronRate?: number;
   rateRangeText?: string;
+  isPriceRange?: boolean;
   unit: string;
   popular?: boolean;
   isActive: boolean;
@@ -25,6 +26,7 @@ const ServiceItemSchema = new Schema<IServiceItem>(
     dryCleanRate: { type: Number, required: true, default: 0 },
     steamIronRate: { type: Number, default: 0 },
     rateRangeText: { type: String, trim: true },
+    isPriceRange: { type: Boolean, default: false },
     unit: { type: String, default: 'piece', trim: true },
     popular: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true, index: true },

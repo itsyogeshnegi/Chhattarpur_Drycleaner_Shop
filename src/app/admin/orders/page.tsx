@@ -18,9 +18,11 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  PhoneCall,
 } from 'lucide-react';
 import { generateWhatsAppInvoiceUrl, generateWhatsAppReadyAlertUrl } from '@/lib/whatsapp';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { isRangePriceItem, hasRangePriceItems } from '@/lib/servicePricing';
 
 interface OrderRecord {
   _id: string;
@@ -601,6 +603,7 @@ function OrdersContent() {
               const totalPieces = ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0);
               const isExpanded = !!expandedOrders[ord._id];
               const visibleItems = isExpanded ? ord.items : ord.items.slice(0, 2);
+              const hasRangeItems = hasRangePriceItems(ord.items);
 
               return (
                 <div key={ord._id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
@@ -613,6 +616,12 @@ function OrdersContent() {
                         >
                           {ord.invoiceNumber}
                         </Link>
+                        {hasRangeItems && (
+                          <span className="font-extrabold text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                            <PhoneCall className="w-2.5 h-2.5 text-amber-700" />
+                            Owner to Connect
+                          </span>
+                        )}
                         {ord.rackLocation && (
                           <span className="font-mono font-semibold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
                             Rack {ord.rackLocation}
@@ -668,9 +677,16 @@ function OrdersContent() {
 
                   <div className="bg-slate-50/80 rounded-xl px-3 py-2 border border-slate-100 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-slate-700">
-                        {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-700">
+                          {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
+                        </span>
+                        {hasRangeItems && (
+                          <span className="text-[9px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded">
+                            Range Items
+                          </span>
+                        )}
+                      </div>
                       {ord.items.length > 2 && (
                         <button
                           type="button"
@@ -682,18 +698,33 @@ function OrdersContent() {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {visibleItems.map((item, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 text-[11px] bg-white border border-slate-200/80 rounded-md px-2 py-0.5 text-slate-700"
-                        >
-                          <span className="font-bold text-brand-600">{item.quantity}×</span>
-                          <span className="truncate max-w-[140px]">{item.name}</span>
-                          <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
-                            {formatServiceLabel(item.serviceType)}
+                      {visibleItems.map((item, idx) => {
+                        const itemIsRange =
+                          isRangePriceItem({ name: item.name }) ||
+                          (item.notes || '').toLowerCase().includes('owner will connect') ||
+                          (item.notes || '').toLowerCase().includes('inspection');
+                        return (
+                          <span
+                            key={idx}
+                            className={`inline-flex items-center gap-1 text-[11px] rounded-md px-2 py-0.5 ${
+                              itemIsRange
+                                ? 'bg-amber-50 border border-amber-300 text-amber-950 font-medium'
+                                : 'bg-white border border-slate-200/80 text-slate-700'
+                            }`}
+                          >
+                            <span className="font-bold text-brand-600">{item.quantity}×</span>
+                            <span className="truncate max-w-[140px]">{item.name}</span>
+                            <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
+                              {formatServiceLabel(item.serviceType)}
+                            </span>
+                            {itemIsRange && (
+                              <span className="text-[9px] font-bold text-amber-800 bg-amber-200/70 px-1 rounded">
+                                Range Quote
+                              </span>
+                            )}
                           </span>
-                        </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -810,6 +841,7 @@ function OrdersContent() {
                   const totalPieces = ord.items.reduce((acc, i) => acc + (i.quantity || 1), 0);
                   const isExpanded = !!expandedOrders[ord._id];
                   const visibleItems = isExpanded ? ord.items : ord.items.slice(0, 2);
+                  const hasRangeItems = hasRangePriceItems(ord.items);
 
                   return (
                     <tr key={ord._id} className="hover:bg-slate-50/70 transition align-top">
@@ -828,8 +860,14 @@ function OrdersContent() {
                             year: 'numeric',
                           })}
                         </p>
+                        {hasRangeItems && (
+                          <span className="mt-1 inline-flex items-center gap-0.5 font-extrabold text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-full">
+                            <PhoneCall className="w-2.5 h-2.5 text-amber-700" />
+                            Owner to Connect
+                          </span>
+                        )}
                         {ord.rackLocation && (
-                          <span className="mt-1 inline-block font-mono font-semibold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                          <span className="mt-1 block font-mono font-semibold text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded w-fit">
                             Rack {ord.rackLocation}
                           </span>
                         )}
@@ -857,10 +895,15 @@ function OrdersContent() {
 
                       {/* Compact Garments Summary */}
                       <td className="py-3.5 px-3 max-w-[260px]">
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                           <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                             {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
                           </span>
+                          {hasRangeItems && (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded">
+                              Specialty Range
+                            </span>
+                          )}
                           {ord.items.length > 2 && (
                             <button
                               type="button"
@@ -873,19 +916,36 @@ function OrdersContent() {
                         </div>
 
                         <div className="flex flex-wrap gap-1">
-                          {visibleItems.map((item, idx) => (
-                            <span
-                              key={idx}
-                              title={`${item.quantity}× ${item.name} (${item.serviceType.replace('_', ' ')})`}
-                              className="inline-flex items-center gap-1 text-[11px] bg-slate-50 border border-slate-200/80 rounded-md px-1.5 py-0.5 text-slate-700"
-                            >
-                              <span className="font-bold text-brand-600">{item.quantity}×</span>
-                              <span className="truncate max-w-[120px]">{item.name}</span>
-                              <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
-                                {formatServiceLabel(item.serviceType)}
+                          {visibleItems.map((item, idx) => {
+                            const itemIsRange =
+                              isRangePriceItem({ name: item.name }) ||
+                              (item.notes || '').toLowerCase().includes('owner will connect') ||
+                              (item.notes || '').toLowerCase().includes('inspection');
+                            return (
+                              <span
+                                key={idx}
+                                title={`${item.quantity}× ${item.name} (${item.serviceType.replace('_', ' ')})${
+                                  itemIsRange ? ' • Price on Inspection (Owner will connect)' : ''
+                                }`}
+                                className={`inline-flex items-center gap-1 text-[11px] rounded-md px-1.5 py-0.5 ${
+                                  itemIsRange
+                                    ? 'bg-amber-50/90 border border-amber-300 text-amber-950 font-medium'
+                                    : 'bg-slate-50 border border-slate-200/80 text-slate-700'
+                                }`}
+                              >
+                                <span className="font-bold text-brand-600">{item.quantity}×</span>
+                                <span className="truncate max-w-[120px]">{item.name}</span>
+                                <span className={`text-[9px] uppercase font-bold px-1 rounded ${getServiceBadgeClass(item.serviceType)}`}>
+                                  {formatServiceLabel(item.serviceType)}
+                                </span>
+                                {itemIsRange && (
+                                  <span className="text-[8px] font-bold text-amber-800 bg-amber-200/70 px-1 rounded">
+                                    Quote
+                                  </span>
+                                )}
                               </span>
-                            </span>
-                          ))}
+                            );
+                          })}
                         </div>
                       </td>
 

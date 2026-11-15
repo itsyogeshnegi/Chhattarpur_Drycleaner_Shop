@@ -3,6 +3,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import {
+  isRangePriceItem,
+  OWNER_CONNECT_LABEL,
+  OWNER_CONNECT_NOTE,
+} from '@/lib/servicePricing';
+import {
   Search,
   Plus,
   Minus,
@@ -13,6 +18,7 @@ import {
   Trash2,
   CheckCircle2,
   SlidersHorizontal,
+  PhoneCall,
 } from 'lucide-react';
 
 interface RateItem {
@@ -23,6 +29,7 @@ interface RateItem {
   dryCleanRate: number;
   steamIronRate?: number;
   rateRangeText?: string;
+  isPriceRange?: boolean;
   unit: string;
 }
 
@@ -31,6 +38,7 @@ interface CartItem {
   serviceType: 'dry_clean' | 'steam_iron';
   rate: number;
   quantity: number;
+  isPriceRange?: boolean;
 }
 
 interface RateCalculatorProps {
@@ -78,7 +86,12 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
   }, [filteredServices, searchQuery, showAllItems]);
 
   const addToCart = (item: RateItem, serviceType: 'dry_clean' | 'steam_iron') => {
-    const rate = serviceType === 'dry_clean' ? item.dryCleanRate : (item.steamIronRate || 0);
+    const isRange = isRangePriceItem(item);
+    const rate = isRange
+      ? 0
+      : serviceType === 'dry_clean'
+      ? item.dryCleanRate
+      : item.steamIronRate || 0;
     const key = `${item.name}_${serviceType}`;
 
     setCart((prev) => {
@@ -91,6 +104,7 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
           serviceType,
           rate,
           quantity: newQty,
+          isPriceRange: isRange,
         },
       };
 
@@ -135,6 +149,8 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
   const cartList = Object.entries(cart);
   const totalAmount = cartList.reduce((acc, [, item]) => acc + item.rate * item.quantity, 0);
   const totalItemCount = cartList.reduce((acc, [, item]) => acc + item.quantity, 0);
+  const rangeCartItems = cartList.filter(([, item]) => item.isPriceRange || item.rate === 0);
+  const hasRangeCartItems = rangeCartItems.length > 0;
 
   const handleBookWithEstimate = () => {
     if (!customer) {
@@ -211,8 +227,18 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                   <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                     <tr>
                       <th className="py-3.5 px-5">Garment / Item</th>
-                      <th className="py-3.5 px-4 text-center">Dry Clean (₹)</th>
-                      <th className="py-3.5 px-4 text-center">Steam Iron (₹)</th>
+                      <th className="py-3.5 px-4 text-center">
+                        <div>Dry Clean Rate</div>
+                        <div className="text-[10px] font-semibold text-emerald-600 normal-case tracking-normal">
+                          Full / 50% Adv
+                        </div>
+                      </th>
+                      <th className="py-3.5 px-4 text-center">
+                        <div>Steam Iron Rate</div>
+                        <div className="text-[10px] font-semibold text-emerald-600 normal-case tracking-normal">
+                          Full / 50% Adv
+                        </div>
+                      </th>
                       <th className="py-3.5 px-5 text-right">Add to Bill</th>
                     </tr>
                   </thead>
@@ -224,56 +250,120 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                         </td>
                       </tr>
                     ) : (
-                      displayedServices.map((item, idx) => (
-                        <tr
-                          key={item._id || item.id || `${item.category}-${item.name}-${idx}`}
-                          className="hover:bg-sky-50/30 transition group"
-                        >
-                          <td className="py-3.5 px-5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{item.name}</span>
-                              <span className="text-[10px] uppercase font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                {item.unit}
-                              </span>
-                            </div>
-                            {item.rateRangeText && (
-                              <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
-                                {item.rateRangeText}
-                              </p>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 text-center font-bold text-slate-800">
-                            ₹{item.dryCleanRate}
-                          </td>
-                          <td className="py-3.5 px-4 text-center font-bold text-slate-600">
-                            {item.steamIronRate && item.steamIronRate > 0 ? (
-                              `₹${item.steamIronRate}`
-                            ) : (
-                              <span className="text-slate-300 font-normal">&mdash;</span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-5 text-right">
-                            <div className="inline-flex items-center gap-1.5 justify-end">
-                              <button
-                                onClick={() => addToCart(item, 'dry_clean')}
-                                className="bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 font-bold text-xs px-2.5 py-1 rounded-md border border-brand-200 transition"
-                                title="Add Dry Clean to Estimate"
-                              >
-                                + DC
-                              </button>
-                              {item.steamIronRate && item.steamIronRate > 0 ? (
+                      displayedServices.map((item, idx) => {
+                        const isRange = isRangePriceItem(item);
+                        return (
+                          <tr
+                            key={item._id || item.id || `${item.category}-${item.name}-${idx}`}
+                            className="hover:bg-sky-50/30 transition group"
+                          >
+                            <td className="py-3.5 px-5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-900">{item.name}</span>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {item.unit}
+                                </span>
+                                {isRange && (
+                                  <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
+                                    <PhoneCall className="w-2.5 h-2.5" />
+                                    Range Item
+                                  </span>
+                                )}
+                              </div>
+                              {isRange ? (
+                                <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                                  {item.rateRangeText || 'Owner will connect with you for exact price'}
+                                </p>
+                              ) : (
+                                item.rateRangeText && (
+                                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                    {item.rateRangeText}
+                                  </p>
+                                )
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              {isRange ? (
+                                <div className="flex flex-col items-center justify-center">
+                                  <span className="text-[11px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full inline-block shadow-2xs">
+                                    Owner will connect with you
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                    {item.rateRangeText ? item.rateRangeText.split('|')[0]?.trim() : `Starts from ₹${item.dryCleanRate}`}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center">
+                                  <span className="font-black text-slate-800 text-sm">₹{item.dryCleanRate}</span>
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap">
+                                    50% Adv: ₹{Math.ceil(item.dryCleanRate * 0.5)}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              {isRange ? (
+                                item.steamIronRate && item.steamIronRate > 0 ? (
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className="text-[11px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full inline-block shadow-2xs">
+                                      Owner will connect with you
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                      {item.rateRangeText && item.rateRangeText.includes('|')
+                                        ? item.rateRangeText.split('|')[1]?.trim()
+                                        : `Starts from ₹${item.steamIronRate}`}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 font-normal">&mdash;</span>
+                                )
+                              ) : (
+                                item.steamIronRate && item.steamIronRate > 0 ? (
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className="font-black text-slate-700 text-sm">₹{item.steamIronRate}</span>
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap">
+                                      50% Adv: ₹{Math.ceil(item.steamIronRate * 0.5)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 font-normal">&mdash;</span>
+                                )
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-5 text-right">
+                              <div className="inline-flex items-center gap-1.5 justify-end">
                                 <button
-                                  onClick={() => addToCart(item, 'steam_iron')}
-                                  className="bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 font-bold text-xs px-2.5 py-1 rounded-md border border-slate-200 transition"
-                                  title="Add Steam Press to Estimate"
+                                  onClick={() => addToCart(item, 'dry_clean')}
+                                  className={`font-bold text-xs px-2.5 py-1 rounded-md border transition cursor-pointer ${
+                                    isRange
+                                      ? 'bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 border-amber-200'
+                                      : 'bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 border-brand-200'
+                                  }`}
+                                  title={isRange ? 'Add Range Item to Quote' : 'Add Dry Clean to Estimate'}
                                 >
-                                  + Iron
+                                  + DC
                                 </button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                {item.steamIronRate && item.steamIronRate > 0 ? (
+                                  <button
+                                    onClick={() => addToCart(item, 'steam_iron')}
+                                    className={`font-bold text-xs px-2.5 py-1 rounded-md border transition cursor-pointer ${
+                                      isRange
+                                        ? 'bg-amber-50 hover:bg-amber-800 hover:text-white text-amber-800 border-amber-200'
+                                        : 'bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 border-slate-200'
+                                    }`}
+                                    title={isRange ? 'Add Range Item to Quote' : 'Add Steam Press to Estimate'}
+                                  >
+                                    + Iron
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -325,31 +415,43 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                   {cartList.map(([key, item]) => (
                     <div
                       key={key}
-                      className="flex justify-between items-center py-1 border-b border-slate-200/50"
+                      className="flex justify-between items-center py-1.5 border-b border-slate-200/50"
                     >
-                      <div className="max-w-[150px] truncate">
+                      <div className="max-w-[140px] truncate">
                         <span className="font-bold text-slate-800">{item.name}</span>
-                        <span className="text-[10px] text-slate-400 block uppercase">
-                          {item.serviceType === 'dry_clean' ? 'Dry Clean' : 'Steam Press'} @ ₹{item.rate}
-                        </span>
+                        {item.isPriceRange || item.rate === 0 ? (
+                          <span className="text-[10px] text-amber-700 font-bold block">
+                            📞 Owner will connect
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block uppercase">
+                            {item.serviceType === 'dry_clean' ? 'Dry Clean' : 'Steam Press'} @ ₹{item.rate}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => updateQuantity(key, -1)}
-                          className="w-5 h-5 rounded bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-100"
+                          className="w-5 h-5 rounded bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-100 cursor-pointer"
                         >
                           <Minus className="w-2.5 h-2.5" />
                         </button>
                         <span className="font-bold text-xs w-4 text-center">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(key, 1)}
-                          className="w-5 h-5 rounded bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-100"
+                          className="w-5 h-5 rounded bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-100 cursor-pointer"
                         >
                           <Plus className="w-2.5 h-2.5" />
                         </button>
-                        <span className="font-bold text-xs text-slate-900 min-w-10 text-right">
-                          ₹{item.rate * item.quantity}
-                        </span>
+                        {item.isPriceRange || item.rate === 0 ? (
+                          <span className="font-bold text-[10px] text-amber-700 min-w-10 text-right whitespace-nowrap">
+                            On Quote
+                          </span>
+                        ) : (
+                          <span className="font-bold text-xs text-slate-900 min-w-10 text-right">
+                            ₹{item.rate * item.quantity}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -360,10 +462,25 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                 </p>
               )}
 
-              {/* Total Row */}
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                <span className="text-xs font-bold text-slate-700">Estimated Total:</span>
-                <span className="text-xl font-extrabold text-slate-900">₹{totalAmount}/-</span>
+              {/* Total & 50% Advance Row */}
+              <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs font-bold text-slate-700">Estimated Total:</span>
+                  <span className="text-lg font-extrabold text-slate-900">
+                    {totalAmount > 0 ? `₹${totalAmount}/-` : hasRangeCartItems ? 'Price on Inspection' : '₹0/-'}
+                  </span>
+                </div>
+                {totalAmount > 0 && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-emerald-700">50% Advance (Mandatory):</span>
+                    <span className="font-black text-emerald-700">₹{Math.ceil(totalAmount * 0.5)}/-</span>
+                  </div>
+                )}
+                {hasRangeCartItems && (
+                  <p className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 leading-tight">
+                    📞 <span className="font-bold">Includes range items:</span> Our owner will inspect specialty garments upon collection and connect with you to confirm the exact price.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -372,16 +489,18 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
               <button
                 type="button"
                 onClick={handleBookWithEstimate}
-                className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-bold py-3 px-4 rounded-lg transition shadow-sm flex items-center justify-center gap-2 text-xs sm:text-sm"
+                className="w-full bg-brand-600 hover:bg-brand-700 active:scale-98 text-white font-bold py-3 px-4 rounded-lg transition shadow-sm flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer"
               >
                 <span>Request a Quote</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
-              {totalAmount > 0 && (
+              {(totalAmount > 0 || hasRangeCartItems) && (
                 <a
                   href={`https://wa.me/918700548416?text=${encodeURIComponent(
-                    `Hello Al-Haram, I have calculated an estimate of ₹${totalAmount} for ${totalItemCount} garments. Please arrange a pickup.`
+                    hasRangeCartItems
+                      ? `Hello Al-Haram, I have selected ${totalItemCount} garments (including specialty range items: ${rangeCartItems.map(([, i]) => i.name).join(', ')}). Total fixed items estimate: ₹${totalAmount}. Please arrange a pickup and connect with me for the quote.`
+                      : `Hello Al-Haram, I have calculated an estimate of ₹${totalAmount} (50% Advance: ₹${Math.ceil(totalAmount * 0.5)}) for ${totalItemCount} garments. Please arrange a pickup.`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"

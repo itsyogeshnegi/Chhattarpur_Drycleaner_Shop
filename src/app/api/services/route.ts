@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     // Fast lean projection
     const items = await ServiceItem.find(query)
-      .select('name category dryCleanRate steamIronRate rateRangeText unit popular isActive')
+      .select('name category dryCleanRate steamIronRate rateRangeText isPriceRange unit popular isActive')
       .sort({ category: 1, popular: -1, name: 1 })
       .lean();
 

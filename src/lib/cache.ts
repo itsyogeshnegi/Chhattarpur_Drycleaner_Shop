@@ -33,6 +33,7 @@ export interface CachedServiceItem {
   dryCleanRate: number;
   steamIronRate?: number;
   rateRangeText?: string;
+  isPriceRange?: boolean;
   unit: string;
   popular?: boolean;
 }
@@ -81,7 +82,7 @@ const fetchActiveServicesCached = unstable_cache(
   async (): Promise<CachedServiceItem[]> => {
     await connectToDatabase();
     const items = await ServiceItem.find({ isActive: true })
-      .select('name category dryCleanRate steamIronRate rateRangeText unit popular')
+      .select('name category dryCleanRate steamIronRate rateRangeText isPriceRange unit popular')
       .sort({ category: 1, popular: -1, name: 1 })
       .lean();
     return JSON.parse(JSON.stringify(items));

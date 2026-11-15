@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 import { calculatePaymentOptions } from '@/lib/paymentPlan';
+import { isRangePriceItem, hasRangePriceItems } from '@/lib/servicePricing';
 import {
   Calendar,
   Clock,
@@ -44,6 +45,7 @@ export default function PickupBookingSection() {
     customer: { name: string; phone: string; email?: string; address?: string };
     pickupDate?: string;
     grandTotal?: number;
+    items?: Array<{ name: string; notes?: string; rate?: number; quantity?: number }>;
   } | null>(null);
   const [error, setError] = useState('');
 
@@ -94,13 +96,16 @@ export default function PickupBookingSection() {
           if (rawEstimate) {
             const parsed = JSON.parse(rawEstimate);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              orderItems = parsed.map((it: { name?: string; serviceType?: string; rate?: number; quantity?: number }) => ({
-                name: it.name || 'Garment Item',
-                serviceType: it.serviceType || 'dry_clean',
-                rate: Number(it.rate) || 0,
-                quantity: Number(it.quantity) || 1,
-                notes: '',
-              }));
+              orderItems = parsed.map((it: { name?: string; serviceType?: string; rate?: number; quantity?: number; isPriceRange?: boolean }) => {
+                const isRange = it.isPriceRange || isRangePriceItem({ name: it.name });
+                return {
+                  name: it.name || 'Garment Item',
+                  serviceType: it.serviceType || 'dry_clean',
+                  rate: isRange ? 0 : Number(it.rate) || 0,
+                  quantity: Number(it.quantity) || 1,
+                  notes: isRange ? 'Price on Inspection - Owner will connect with you' : '',
+                };
+              });
             }
           }
         } catch (err) {
@@ -131,7 +136,7 @@ export default function PickupBookingSection() {
         setBookedOrder(data.order);
         try {
           localStorage.removeItem('alharam_active_estimate');
-        } catch {}
+        } catch { }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('clear-cart'));
         }
@@ -240,11 +245,21 @@ export default function PickupBookingSection() {
                           Total Estimate: ₹{opts.total}
                         </p>
                         <p className="text-[10px] font-semibold text-emerald-700">
-                          Flexible Payment: Pay Full (₹{opts.total}), Custom Advance, or Pay ₹0 on Delivery
+                          Payment Policy: 50% Advance (₹{opts.halfPayableAmount}) or Full Payment (₹{opts.total})
                         </p>
                       </div>
                     );
                   })()}
+                  {bookedOrder.items && hasRangePriceItems(bookedOrder.items) && (
+                    <div className="pt-2 mt-2 border-t border-amber-200 bg-amber-50/80 -mx-4 -mb-1 p-2.5 rounded-b-xl text-left">
+                      <p className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
+                        📞 Specialty / Range Items Included
+                      </p>
+                      <p className="text-[10px] text-amber-800 mt-0.5 leading-snug">
+                        Our store owner will inspect your garments upon collection and connect with you to confirm your final quote.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 pt-2">
@@ -254,7 +269,7 @@ export default function PickupBookingSection() {
                       className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-sm"
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Pay Online (Full / Custom)</span>
+                      <span>Pay Online (50% Advance / Full)</span>
                     </Link>
                   )}
 
@@ -381,9 +396,9 @@ export default function PickupBookingSection() {
                       onChange={(e) => setFormData({ ...formData, timeSlot: e.target.value })}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition"
                     >
-                      <option>Morning (9:00 AM – 1:00 PM)</option>
+                      <option>Morning (10:00 AM – 1:00 PM)</option>
                       <option>Afternoon (1:00 PM – 5:00 PM)</option>
-                      <option>Evening (5:00 PM – 9:00 PM)</option>
+                      <option>Evening (5:00 PM – 8:30 PM)</option>
                     </select>
                   </div>
                 </div>

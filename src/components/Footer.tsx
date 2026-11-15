@@ -80,11 +80,6 @@ export default function Footer() {
                   Contact
                 </Link>
               </li>
-              <li>
-                <Link href="/admin/login" className="hover:text-brand-400 text-slate-500 transition">
-                  Staff Portal
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -126,13 +121,19 @@ export default function Footer() {
               <p className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-brand-500 shrink-0" />
                 <a href="tel:+918700548416" className="hover:text-white transition">
-                  +91 87005 48416
+                  +91 8700548416
+                </a>
+              </p>
+              <p className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                <a href="tel:+918851307434" className="hover:text-white transition">
+                  +91 8851307434
                 </a>
               </p>
               <p className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-                <a href="mailto:hello@alharamcleaners.com" className="hover:text-white transition">
-                  hello@alharamcleaners.com
+                <a href="mailto:alharamdrycleaners2023@gmail.com" className="hover:text-white transition">
+                  alharamdrycleaners2023@gmail.com
                 </a>
               </p>
               <p className="flex items-start gap-2 pt-1 leading-relaxed">

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     if (paymentPlan !== 'half' && paymentPlan !== 'full' && paymentPlan !== 'custom') {
       return NextResponse.json(
-        { success: false, message: 'Invalid payment plan. Choose full payment or custom amount.' },
+        { success: false, message: 'Invalid payment plan. Choose 50% advance or full payment.' },
         { status: 400 }
       );
     }
@@ -64,18 +64,22 @@ export async function POST(req: NextRequest) {
       customAmount !== undefined && customAmount !== null ? Number(customAmount) : undefined
     );
 
-    // If 0 is chosen (Pay on Delivery / Pay on Pickup), confirm directly without Razorpay API call
-    if (payableAmount === 0) {
-      return NextResponse.json({
-        success: true,
-        mode: 'pay_on_delivery',
-        paymentPlan: effectivePlan,
-        payableAmount: 0,
-        remainingAfterPayment: opts.remaining,
-        invoiceNumber: invoice.invoiceNumber,
-        message: 'Order confirmed for Pay on Delivery. No online payment needed upfront.',
-        customer: invoice.customer,
-      });
+    // Enforce 50% advance mandate if not yet satisfied
+    if (opts.canChooseHalf && payableAmount < opts.halfPayableAmount) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Mandatory minimum 50% advance payment of ₹${opts.halfPayableAmount} is required.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (payableAmount <= 0) {
+      return NextResponse.json(
+        { success: false, message: 'Payable amount must be greater than zero.' },
+        { status: 400 }
+      );
     }
 
     const amountInPaise = Math.round(payableAmount * 100);

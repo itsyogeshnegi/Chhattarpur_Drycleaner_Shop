@@ -27,6 +27,7 @@ import { generateWhatsAppInvoiceUrl } from '@/lib/whatsapp';
 import { normalizeIndianPhone, sanitizePhoneInput } from '@/lib/phone';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { PaymentPlan } from '@/lib/paymentPlan';
+import { isRangePriceItem } from '@/lib/servicePricing';
 
 interface RateItem {
   _id: string;
@@ -815,8 +816,13 @@ export default function CounterManagementPage() {
                         </button>
                       </div>
                     </div>
+                    {isRangePriceItem(item) && (
+                      <span className="inline-block text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded mt-0.5">
+                        Range Item (Owner to Quote)
+                      </span>
+                    )}
                     {item.rateRangeText && (
-                      <p className="text-[10px] text-amber-700 font-medium">{item.rateRangeText}</p>
+                      <p className="text-[10px] text-amber-700 font-medium mt-0.5">{item.rateRangeText}</p>
                     )}
                   </div>
 

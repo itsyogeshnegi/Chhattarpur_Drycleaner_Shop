@@ -13,6 +13,7 @@ import {
   Tag,
   Camera,
 } from 'lucide-react';
+import { isRangePriceItem } from '@/lib/servicePricing';
 
 interface OrderInvoiceRecord {
   _id: string;
@@ -217,20 +218,49 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {invoice.items.map((item, i) => (
-              <tr key={i}>
-                <td className="py-2.5 font-bold text-slate-800">
-                  {item.name}
-                  {item.notes && <p className="text-[10px] text-slate-400 italic">{item.notes}</p>}
-                </td>
-                <td className="py-2.5 text-center uppercase text-[10px] font-semibold text-slate-500">
-                  {item.serviceType.replace('_', ' ')}
-                </td>
-                <td className="py-2.5 text-right font-medium">₹{item.rate}</td>
-                <td className="py-2.5 text-center font-bold">{item.quantity}</td>
-                <td className="py-2.5 text-right font-extrabold">₹{item.total}</td>
-              </tr>
-            ))}
+            {invoice.items.map((item, i) => {
+              const isRange =
+                isRangePriceItem({ name: item.name }) ||
+                (item.notes || '').toLowerCase().includes('owner will connect') ||
+                (item.notes || '').toLowerCase().includes('inspection');
+              const isPending = isRange && item.rate === 0;
+
+              return (
+                <tr key={i}>
+                  <td className="py-2.5 font-bold text-slate-800">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{item.name}</span>
+                      {isPending && (
+                        <span className="text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded">
+                          Owner to Quote
+                        </span>
+                      )}
+                    </div>
+                    {item.notes && <p className="text-[10px] text-slate-400 italic mt-0.5">{item.notes}</p>}
+                  </td>
+                  <td className="py-2.5 text-center uppercase text-[10px] font-semibold text-slate-500">
+                    {item.serviceType.replace('_', ' ')}
+                  </td>
+                  <td className="py-2.5 text-right font-medium">
+                    {isPending ? (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                        Owner to Quote
+                      </span>
+                    ) : (
+                      `₹${item.rate}`
+                    )}
+                  </td>
+                  <td className="py-2.5 text-center font-bold">{item.quantity}</td>
+                  <td className="py-2.5 text-right font-extrabold">
+                    {isPending ? (
+                      <span className="text-[11px] font-bold text-amber-700">Pending</span>
+                    ) : (
+                      `₹${item.total}`
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
