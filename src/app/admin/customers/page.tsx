@@ -26,7 +26,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
+
+interface CustomerResetStats {
+  dailyAttempts: number;
+  maxDailyAttempts: number;
+  isDailyLimitReached: boolean;
+  hoursUntilWindowReset: number;
+  totalResets: number;
+  lastResetAt: string | null;
+  registeredAt?: string | null;
+}
 
 interface CustomerOrderSummary {
   invoiceNumber: string;
@@ -45,6 +62,7 @@ interface CustomerRecord {
   email?: string;
   address?: string;
   isRegistered: boolean;
+  resetStats?: CustomerResetStats | null;
   totalOrders: number;
   totalSpent: number;
   totalPaid: number;
@@ -75,6 +93,16 @@ export default function AdminCustomersPage() {
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<CustomerRecord | null>(null);
   const [loadingHistoryDetail, setLoadingHistoryDetail] = useState(false);
 
+  // Customer Password & Security Management Modal state
+  const [selectedCustomerForPassword, setSelectedCustomerForPassword] = useState<CustomerRecord | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [resetDailyLimitCheckbox, setResetDailyLimitCheckbox] = useState(true);
+  const [passwordModalLoading, setPasswordModalLoading] = useState(false);
+  const [passwordModalSuccess, setPasswordModalSuccess] = useState<string | null>(null);
+  const [passwordModalError, setPasswordModalError] = useState<string | null>(null);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
   // Date-wise Revenue Filter state (start date & end date mandatory; end date >= start date)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -82,7 +110,7 @@ export default function AdminCustomersPage() {
   const [appliedEndDate, setAppliedEndDate] = useState('');
   const [dateError, setDateError] = useState('');
 
-  useBodyScrollLock(Boolean(selectedCustomerForHistory));
+  useBodyScrollLock(Boolean(selectedCustomerForHistory || selectedCustomerForPassword));
 
   const fetchCustomers = async (
     targetPage = page,
@@ -177,6 +205,151 @@ export default function AdminCustomersPage() {
     } finally {
       setLoadingHistoryDetail(false);
     }
+  };
+
+  const openCustomerPasswordModal = async (cust: CustomerRecord) => {
+    setSelectedCustomerForPassword(cust);
+    setNewPasswordInput('');
+    setShowAdminPassword(false);
+    setResetDailyLimitCheckbox(true);
+    setPasswordModalSuccess(null);
+    setPasswordModalError(null);
+    setCopiedPassword(false);
+
+    try {
+      const res = await fetch(
+        `/api/admin/customers/password?identifier=${encodeURIComponent(cust.phone || cust.email || cust.id)}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      if (data.success && data.customer) {
+        setSelectedCustomerForPassword((prev) =>
+          prev
+            ? {
+                ...prev,
+                email: data.customer.email || prev.email,
+                name: data.customer.name || prev.name,
+                resetStats: data.customer.resetStats,
+              }
+            : null
+        );
+      }
+    } catch (err) {
+      console.error('Failed to load customer security details:', err);
+    }
+  };
+
+  const handleAdminUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomerForPassword) return;
+
+    if (!newPasswordInput.trim() || newPasswordInput.trim().length < 6) {
+      setPasswordModalError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    setPasswordModalLoading(true);
+    setPasswordModalError(null);
+    setPasswordModalSuccess(null);
+
+    try {
+      const res = await fetch('/api/admin/customers/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: selectedCustomerForPassword.phone || selectedCustomerForPassword.email || selectedCustomerForPassword.id,
+          action: 'update_password',
+          newPassword: newPasswordInput.trim(),
+          resetDailyAttempts: resetDailyLimitCheckbox,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPasswordModalSuccess(data.message || 'Password updated successfully!');
+        if (data.customer?.resetStats) {
+          const updatedStats = data.customer.resetStats;
+          setSelectedCustomerForPassword((prev) =>
+            prev ? { ...prev, resetStats: updatedStats } : null
+          );
+          setCustomers((prev) =>
+            prev.map((c) =>
+              c.id === selectedCustomerForPassword.id
+                ? { ...c, resetStats: updatedStats }
+                : c
+            )
+          );
+        }
+      } else {
+        setPasswordModalError(data.message || 'Failed to update customer password.');
+      }
+    } catch {
+      setPasswordModalError('Network error while updating password. Please try again.');
+    } finally {
+      setPasswordModalLoading(false);
+    }
+  };
+
+  const handleAdminUnlockDailyLimit = async () => {
+    if (!selectedCustomerForPassword) return;
+
+    setPasswordModalLoading(true);
+    setPasswordModalError(null);
+    setPasswordModalSuccess(null);
+
+    try {
+      const res = await fetch('/api/admin/customers/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: selectedCustomerForPassword.phone || selectedCustomerForPassword.email || selectedCustomerForPassword.id,
+          action: 'unlock_daily_limit',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPasswordModalSuccess(data.message || 'Daily limit cleared successfully!');
+        if (data.resetStats) {
+          const updatedStats = data.resetStats;
+          setSelectedCustomerForPassword((prev) =>
+            prev ? { ...prev, resetStats: updatedStats } : null
+          );
+          setCustomers((prev) =>
+            prev.map((c) =>
+              c.id === selectedCustomerForPassword.id
+                ? { ...c, resetStats: updatedStats }
+                : c
+            )
+          );
+        }
+      } else {
+        setPasswordModalError(data.message || 'Failed to unlock daily limit.');
+      }
+    } catch {
+      setPasswordModalError('Network error while unlocking daily limit.');
+    } finally {
+      setPasswordModalLoading(false);
+    }
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = '23456789';
+    let pin = '';
+    for (let i = 0; i < 4; i++) {
+      pin += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const generated = `Haram@${pin}`;
+    setNewPasswordInput(generated);
+    setShowAdminPassword(true);
+    setCopiedPassword(false);
+  };
+
+  const handleCopyPassword = () => {
+    if (!newPasswordInput) return;
+    navigator.clipboard.writeText(newPasswordInput);
+    setCopiedPassword(true);
+    setTimeout(() => setCopiedPassword(false), 2000);
   };
 
   useEffect(() => {
@@ -540,6 +713,12 @@ export default function AdminCustomersPage() {
                             Repeat
                           </span>
                         )}
+                        {cust.resetStats?.isDailyLimitReached && (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.2 rounded-md inline-flex items-center gap-0.5">
+                            <ShieldAlert className="w-3 h-3 text-amber-600" />
+                            <span>Limit (2/2)</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -605,18 +784,29 @@ export default function AdminCustomersPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
                   <button
                     type="button"
                     onClick={() => openCustomerHistoryModal(cust)}
-                    className="flex-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+                    className="flex-1 min-w-[105px] bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-2.5 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
                   >
                     <FileText className="w-3.5 h-3.5 text-brand-600" />
                     <span>Invoices ({cust.totalOrders})</span>
                   </button>
+                  {cust.isRegistered && (
+                    <button
+                      type="button"
+                      onClick={() => openCustomerPasswordModal(cust)}
+                      className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+                      title="Password & Security"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Password</span>
+                    </button>
+                  )}
                   <Link
                     href={cust.actions.posNewOrderUrl}
-                    className="flex-1 bg-slate-900 hover:bg-brand-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
+                    className="flex-1 min-w-[105px] bg-slate-900 hover:bg-brand-600 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
                     <span>New Order</span>
@@ -681,6 +871,12 @@ export default function AdminCustomersPage() {
                             {cust.totalOrders >= 2 && (
                               <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md">
                                 Repeat
+                              </span>
+                            )}
+                            {cust.resetStats?.isDailyLimitReached && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.2 rounded-md">
+                                <ShieldAlert className="w-3 h-3 text-amber-600" />
+                                <span>Reset Blocked (2/2)</span>
                               </span>
                             )}
                           </div>
@@ -768,19 +964,32 @@ export default function AdminCustomersPage() {
 
                     {/* QUICK ACTIONS */}
                     <td className="py-3.5 px-4 align-top text-right">
-                      <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
-                        {/* Action 1: View Orders & Invoices History */}
+                      <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        {/* Action 1: Password & Security (if registered) */}
+                        {cust.isRegistered && (
+                          <button
+                            type="button"
+                            onClick={() => openCustomerPasswordModal(cust)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                            title="Manage Password & View Reset Counts"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Password</span>
+                          </button>
+                        )}
+
+                        {/* Action 2: View Orders & Invoices History */}
                         <button
                           type="button"
                           onClick={() => openCustomerHistoryModal(cust)}
-                          className="bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                          className="bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                           title="View Past Orders & Invoices History"
                         >
                           <FileText className="w-3.5 h-3.5 text-brand-600" />
                           <span>Invoices ({cust.totalOrders})</span>
                         </button>
 
-                        {/* Action 2: New Order (POS) */}
+                        {/* Action 3: New Order (POS) */}
                         <Link
                           href={cust.actions.posNewOrderUrl}
                           className="bg-slate-900 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0"
@@ -943,6 +1152,275 @@ export default function AdminCustomersPage() {
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>Create New Order for Customer</span>
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Password & Security Management Modal */}
+      {selectedCustomerForPassword && (
+        <div className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-extrabold flex items-center justify-center text-sm shadow-xs border border-amber-200">
+                  <KeyRound className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Password &amp; Security Management
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {selectedCustomerForPassword.name} &bull; {selectedCustomerForPassword.phone}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCustomerForPassword(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4 grow">
+              {/* Customer Account Summary Card */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 text-xs space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-200/60">
+                  <span className="font-bold text-slate-700">Registered Email:</span>
+                  <span className="font-mono text-slate-900 font-semibold">
+                    {selectedCustomerForPassword.email || 'No email recorded'}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="font-bold text-slate-700">Account ID / Mobile:</span>
+                  <span className="font-mono text-slate-900 font-semibold">
+                    {selectedCustomerForPassword.phone}
+                  </span>
+                </div>
+              </div>
+
+              {/* Password Reset Activity & Quota Card */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-brand-600" />
+                    <span>Password Reset Activity &amp; Quota</span>
+                  </h4>
+                  {selectedCustomerForPassword.resetStats?.isDailyLimitReached ? (
+                    <span className="text-[10px] font-extrabold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 text-amber-600" />
+                      <span>Daily Limit Reached (2/2)</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>OTP Reset Available</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* 3-Stats Grid */}
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Today&apos;s Requests</span>
+                    <span className="text-sm font-black text-slate-900">
+                      {selectedCustomerForPassword.resetStats?.dailyAttempts || 0} / 2
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Lifetime Resets</span>
+                    <span className="text-sm font-black text-slate-900">
+                      {selectedCustomerForPassword.resetStats?.totalResets || 0} times
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Last Reset</span>
+                    <span className="text-[11px] font-bold text-slate-700 block truncate" title={selectedCustomerForPassword.resetStats?.lastResetAt || 'Never'}>
+                      {selectedCustomerForPassword.resetStats?.lastResetAt
+                        ? new Date(selectedCustomerForPassword.resetStats.lastResetAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                          })
+                        : 'Never'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Unlock Button if user hit daily limit */}
+                {(selectedCustomerForPassword.resetStats?.dailyAttempts || 0) > 0 && (
+                  <div className="pt-1 flex items-center justify-between gap-2 p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-lg">
+                    <div className="text-[11px] text-amber-900 leading-tight">
+                      <span className="font-bold">Customer Locked?</span> You can instantly clear their 2-per-day OTP attempt count.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAdminUnlockDailyLimit}
+                      disabled={passwordModalLoading}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition shrink-0 cursor-pointer disabled:opacity-50"
+                    >
+                      {passwordModalLoading ? 'Unlocking...' : 'Unlock Daily Limit'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Set New Password Form */}
+              <form onSubmit={handleAdminUpdatePassword} className="space-y-3 pt-1">
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-blue-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <Lock className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Admin Password Update</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Customer passwords are securely protected by one-way bcrypt encryption and cannot be viewed in plain text. You can enter or generate a new password below and share it with the customer.
+                  </p>
+                </div>
+
+                {/* Password Input with Show/Hide toggle */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-brand-600" />
+                      <span>Set New Customer Password *</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePassword}
+                      className="text-[11px] font-bold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer"
+                    >
+                      + Auto-Generate
+                    </button>
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Enter new password (min 6 chars)"
+                      value={newPasswordInput}
+                      onChange={(e) => setNewPasswordInput(e.target.value)}
+                      className="w-full pl-3 pr-20 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                      autoFocus
+                    />
+                    <div className="absolute right-2 flex items-center gap-1">
+                      {newPasswordInput && (
+                        <button
+                          type="button"
+                          onClick={handleCopyPassword}
+                          className="p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
+                          title="Copy Password"
+                        >
+                          {copiedPassword ? (
+                            <Check className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
+                        title={showAdminPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Click the eye icon to view the password, or copy it to send to the customer.
+                  </p>
+                </div>
+
+                {/* Checkbox for clearing limit */}
+                <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={resetDailyLimitCheckbox}
+                    onChange={(e) => setResetDailyLimitCheckbox(e.target.checked)}
+                    className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                  />
+                  <span>Also reset customer&apos;s daily OTP limit to 0</span>
+                </label>
+
+                {/* Error Banner */}
+                {passwordModalError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{passwordModalError}</span>
+                  </div>
+                )}
+
+                {/* Success Banner */}
+                {passwordModalSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-emerald-800">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{passwordModalSuccess}</span>
+                    </div>
+                    {newPasswordInput && (
+                      <div className="p-2 bg-white border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                        <span className="font-mono font-bold text-xs text-slate-800">
+                          {newPasswordInput}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyPassword}
+                          className="text-[11px] font-bold text-brand-600 hover:text-brand-800 inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedPassword ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={passwordModalLoading || !newPasswordInput.trim() || newPasswordInput.trim().length < 6}
+                  className="w-full bg-slate-900 hover:bg-brand-600 text-white font-extrabold text-xs sm:text-sm py-2.5 rounded-xl transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {passwordModalLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving New Password...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      <span>Update Customer Password</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedCustomerForPassword(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

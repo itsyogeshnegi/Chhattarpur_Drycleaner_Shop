@@ -70,6 +70,8 @@ export async function POST(req: NextRequest) {
     // Hash the new password
     const passwordHash = await bcrypt.hash(newPassword, 10);
     user.passwordHash = passwordHash;
+    user.passwordResetCount = (user.passwordResetCount || 0) + 1;
+    user.lastPasswordResetAt = new Date();
     user.resetPasswordOtp = undefined;
     user.resetPasswordOtpExpires = undefined;
     await user.save();

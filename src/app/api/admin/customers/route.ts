@@ -118,9 +118,14 @@ export async function GET(req: NextRequest) {
           .lean(),
         User.findOne({
           role: 'customer',
-          phone: phoneQuery,
+          $or: [
+            ...(variants.length > 0 ? [{ phone: phoneQuery }, { userId: cleanPhone }] : []),
+            { email: detailPhone.toLowerCase() },
+          ],
         })
-          .select('name phone email')
+          .select(
+            'userId name phone email resetPasswordDailyAttempts resetPasswordDailyWindowStart passwordResetCount lastPasswordResetAt createdAt isActive'
+          )
           .lean(),
       ]);
 
@@ -143,16 +148,38 @@ export async function GET(req: NextRequest) {
       const email =
         orders.find((o) => o.customer?.email)?.customer?.email || regUser?.email || '';
 
+      const WINDOW_MS = 24 * 60 * 60 * 1000;
+      const nowMs = Date.now();
+      const windowStart = regUser?.resetPasswordDailyWindowStart
+        ? new Date(regUser.resetPasswordDailyWindowStart).getTime()
+        : null;
+      const isWindowActive = windowStart !== null && nowMs - windowStart < WINDOW_MS;
+      const dailyAttempts = isWindowActive ? regUser?.resetPasswordDailyAttempts || 0 : 0;
+      const isDailyLimitReached = dailyAttempts >= 2;
+      const remainingMs = windowStart ? Math.max(0, windowStart + WINDOW_MS - nowMs) : 0;
+      const hoursRemaining = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
+
       return NextResponse.json(
         {
           success: true,
           customer: {
-            id: cleanPhone,
+            id: cleanPhone || regUser?.userId || 'unknown',
             name: displayName,
-            phone: cleanPhone,
+            phone: cleanPhone || regUser?.phone || '',
             email,
             address,
             isRegistered: Boolean(regUser),
+            resetStats: regUser
+              ? {
+                  dailyAttempts,
+                  maxDailyAttempts: 2,
+                  isDailyLimitReached,
+                  hoursUntilWindowReset: hoursRemaining,
+                  totalResets: regUser.passwordResetCount || 0,
+                  lastResetAt: regUser.lastPasswordResetAt || null,
+                  registeredAt: regUser.createdAt || null,
+                }
+              : null,
             totalOrders: orderSummaries.length,
             totalSpent: orders.reduce((s, o) => s + (o.grandTotal || 0), 0),
             totalPaid: orders.reduce((s, o) => s + (o.paidAmount || 0), 0),
@@ -161,7 +188,7 @@ export async function GET(req: NextRequest) {
             lastOrderDate: latest?.createdAt,
             orders: orderSummaries,
             lastThreeOrders: orderSummaries.slice(0, 3),
-            actions: buildCustomerActions(displayName, cleanPhone, address),
+            actions: buildCustomerActions(displayName, cleanPhone || regUser?.phone || '', address),
           },
         },
         { headers: { 'Cache-Control': 'no-store' } }
@@ -183,6 +210,7 @@ export async function GET(req: NextRequest) {
       const cleanDigits = search.replace(/\D/g, '').replace(/^0+/, '');
       const orFilters: Array<Record<string, unknown>> = [
         { 'customer.name': { $regex: escaped, $options: 'i' } },
+        { 'customer.email': { $regex: escaped, $options: 'i' } },
         { 'customer.address': { $regex: escaped, $options: 'i' } },
       ];
       if (cleanDigits.length >= 3) {
@@ -301,21 +329,88 @@ export async function GET(req: NextRequest) {
       )
     );
 
+    // Also include registered users matching search if not already in pagedRows
+    if (search && page === 1) {
+      const escaped = escapeRegExp(search);
+      const cleanDigits = search.replace(/\D/g, '').replace(/^0+/, '');
+      const userSearchFilters: Array<Record<string, unknown>> = [
+        { name: { $regex: escaped, $options: 'i' } },
+        { email: { $regex: escaped, $options: 'i' } },
+      ];
+      if (cleanDigits.length >= 3) {
+        userSearchFilters.push({ phone: { $regex: escapeRegExp(cleanDigits) } });
+      }
+
+      const standaloneUsers = await User.find({
+        role: 'customer',
+        $or: userSearchFilters,
+      })
+        .select(
+          'userId name phone email resetPasswordDailyAttempts resetPasswordDailyWindowStart passwordResetCount lastPasswordResetAt createdAt isActive'
+        )
+        .limit(10)
+        .lean();
+
+      standaloneUsers.forEach((u) => {
+        const clean = normalizeIndianPhone(u.phone || u.userId) || u.phone || u.userId;
+        const exists = pagedRows.some(
+          (r: { _id: string }) => (normalizeIndianPhone(r._id) || r._id) === clean
+        );
+        if (!exists) {
+          pagedRows.unshift({
+            _id: clean,
+            name: u.name,
+            email: u.email,
+            address: '',
+            totalOrders: 0,
+            totalSpent: 0,
+            totalPaid: 0,
+            totalBalance: 0,
+            firstOrderDate: u.createdAt,
+            lastOrderDate: u.createdAt,
+            lastThreeOrders: [],
+          });
+        }
+      });
+    }
+
+    const pageEmails = pagedRows
+      .map((r: { email?: string }) => r.email?.trim().toLowerCase())
+      .filter(Boolean) as string[];
+
+    const userOrFilters: Array<Record<string, unknown>> = [];
+    if (pagePhoneVariants.length > 0) {
+      userOrFilters.push({ phone: { $in: pagePhoneVariants } });
+      userOrFilters.push({ userId: { $in: pagePhoneVariants } });
+    }
+    if (pageEmails.length > 0) {
+      userOrFilters.push({ email: { $in: pageEmails } });
+    }
+
     const registeredUsers =
-      pagePhoneVariants.length > 0
+      userOrFilters.length > 0
         ? await User.find({
             role: 'customer',
-            phone: { $in: pagePhoneVariants },
+            $or: userOrFilters,
           })
-            .select('name phone email')
+            .select(
+              'userId name phone email resetPasswordDailyAttempts resetPasswordDailyWindowStart passwordResetCount lastPasswordResetAt createdAt isActive'
+            )
             .lean()
         : [];
 
-    const registeredMap = new Map<string, (typeof registeredUsers)[0]>();
+    const registeredPhoneMap = new Map<string, (typeof registeredUsers)[0]>();
+    const registeredEmailMap = new Map<string, (typeof registeredUsers)[0]>();
     registeredUsers.forEach((u) => {
       if (u.phone) {
         const clean = normalizeIndianPhone(u.phone);
-        if (clean) registeredMap.set(clean, u);
+        if (clean) registeredPhoneMap.set(clean, u);
+      }
+      if (u.email) {
+        registeredEmailMap.set(u.email.toLowerCase(), u);
+      }
+      if (u.userId) {
+        registeredPhoneMap.set(u.userId, u);
       }
     });
 
@@ -341,18 +436,40 @@ export async function GET(req: NextRequest) {
       }>;
     }) => {
       const cleanPhone = normalizeIndianPhone(c._id) || String(c._id || '').trim();
-      const regUser = registeredMap.get(cleanPhone);
+      const regUser = registeredPhoneMap.get(cleanPhone) || (c.email ? registeredEmailMap.get(c.email.toLowerCase()) : undefined);
       const displayName = c.name || regUser?.name || 'Valued Customer';
       const address = c.address || 'Chattarpur / Delhi NCR';
       const lastThreeOrders = Array.isArray(c.lastThreeOrders) ? c.lastThreeOrders : [];
 
+      const WINDOW_MS = 24 * 60 * 60 * 1000;
+      const nowMs = Date.now();
+      const windowStart = regUser?.resetPasswordDailyWindowStart
+        ? new Date(regUser.resetPasswordDailyWindowStart).getTime()
+        : null;
+      const isWindowActive = windowStart !== null && nowMs - windowStart < WINDOW_MS;
+      const dailyAttempts = isWindowActive ? (regUser?.resetPasswordDailyAttempts || 0) : 0;
+      const isDailyLimitReached = dailyAttempts >= 2;
+      const remainingMs = windowStart ? Math.max(0, windowStart + WINDOW_MS - nowMs) : 0;
+      const hoursRemaining = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
+
       return {
-        id: cleanPhone,
+        id: cleanPhone || regUser?.userId || 'unknown',
         name: displayName,
-        phone: cleanPhone,
+        phone: cleanPhone || regUser?.phone || '',
         email: c.email || regUser?.email || '',
         address,
         isRegistered: Boolean(regUser),
+        resetStats: regUser
+          ? {
+              dailyAttempts,
+              maxDailyAttempts: 2,
+              isDailyLimitReached,
+              hoursUntilWindowReset: hoursRemaining,
+              totalResets: regUser.passwordResetCount || 0,
+              lastResetAt: regUser.lastPasswordResetAt || null,
+              registeredAt: regUser.createdAt || null,
+            }
+          : null,
         totalOrders: c.totalOrders || 0,
         totalSpent: c.totalSpent || 0,
         totalPaid: c.totalPaid || 0,
@@ -361,7 +478,7 @@ export async function GET(req: NextRequest) {
         lastOrderDate: c.lastOrderDate,
         orders: lastThreeOrders,
         lastThreeOrders,
-        actions: buildCustomerActions(displayName, cleanPhone, c.address),
+        actions: buildCustomerActions(displayName, cleanPhone || regUser?.phone || '', c.address),
       };
     });
 
