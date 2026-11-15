@@ -137,13 +137,35 @@ If you did not request this reset, please ignore this email.
 ${storeAddress}
     `.trim();
 
-    const data = await resend.emails.send({
-      from: RESEND_FROM_EMAIL,
+    const configuredFrom = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+    let data = await resend.emails.send({
+      from: configuredFrom,
       to,
       subject: `Your Password Reset OTP: ${otp} - ${storeName}`,
       html: htmlContent,
       text: textContent,
     });
+
+    // Graceful fallback: If configured sender domain is unverified on Resend,
+    // automatically retry via Resend's default sandbox sender 'onboarding@resend.dev'
+    if (
+      data.error &&
+      configuredFrom !== 'onboarding@resend.dev' &&
+      (data.error.message.toLowerCase().includes('not verified') ||
+        data.error.message.toLowerCase().includes('domain'))
+    ) {
+      console.warn(
+        `[Resend Warning] Sender "${configuredFrom}" is not verified on Resend (${data.error.message}). Retrying with default sandbox "onboarding@resend.dev"...`
+      );
+      data = await resend.emails.send({
+        from: 'onboarding@resend.dev',
+        to,
+        subject: `Your Password Reset OTP: ${otp} - ${storeName}`,
+        html: htmlContent,
+        text: textContent,
+      });
+    }
 
     if (data.error) {
       console.error('[Resend Error]:', data.error);
