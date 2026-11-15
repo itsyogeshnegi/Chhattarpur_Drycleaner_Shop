@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Poppins } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/Providers';
+import { Analytics } from '@vercel/analytics/next';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -34,6 +35,7 @@ export default function RootLayout({
     <html lang="en" className={`${poppins.variable} scroll-smooth`} suppressHydrationWarning>
       <body className={`${poppins.className} font-sans antialiased min-h-screen flex flex-col`} suppressHydrationWarning>
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );

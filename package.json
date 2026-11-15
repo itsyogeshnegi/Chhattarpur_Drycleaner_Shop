@@ -10,6 +10,7 @@
     "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^2.4.3",
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
