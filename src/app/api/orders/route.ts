@@ -29,10 +29,19 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
 
-    const query: Record<string, unknown> = {};
+    const andConditions: Array<Record<string, unknown>> = [];
 
     if (status && status !== 'all') {
-      query.status = status;
+      if (status === 'specialty_range') {
+        andConditions.push({
+          $or: [
+            { 'items.name': { $regex: /(sherwani|saree|lehenga|lengha|gown|suit)/i } },
+            { 'items.notes': { $regex: /(owner will connect|inspection)/i } },
+          ],
+        });
+      } else {
+        andConditions.push({ status });
+      }
     }
 
     if (search) {
@@ -46,8 +55,15 @@ export async function GET(req: NextRequest) {
         const tailDigits = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
         orConditions.push({ 'customer.phone': { $regex: `^${escapeRegExp(tailDigits)}` } });
       }
-      query.$or = orConditions;
+      andConditions.push({ $or: orConditions });
     }
+
+    const query: Record<string, unknown> =
+      andConditions.length === 0
+        ? {}
+        : andConditions.length === 1
+        ? andConditions[0]
+        : { $and: andConditions };
 
     const skip = (page - 1) * limit;
 

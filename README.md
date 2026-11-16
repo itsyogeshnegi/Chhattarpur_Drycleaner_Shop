@@ -129,6 +129,11 @@ npm run lint         # ESLint check
 
 ## Change Log
 
+- **2026-11-16:** Added "Specialty Range" filter option to Admin Orders & Deliveries dashboard ([`src/app/admin/orders/page.tsx`](src/app/admin/orders/page.tsx)):
+  - Added `Specialty Range` to the status filter dropdown, allowing store staff and admin to instantly filter the orders list to only orders containing specialty garments awaiting owner price confirmation or inspection (e.g. *Sherwani*, *Saree*, *Lehenga*, *Gown*, *Suits*).
+  - Updated backend API ([`GET /api/orders`](src/app/api/orders/route.ts)) to support `status=specialty_range` filtering via MongoDB regex matching on garment names and inspection notes, seamlessly combining with invoice/customer search and pagination.
+  - Handled status updates during active `specialty_range` filter view so lifecycle transitions preserve the visible order in the specialty list.
+
 - **2026-11-16:** Polished digital and printable invoice line items design in [`src/app/invoice/[id]/page.tsx`](src/app/invoice/[id]/page.tsx) and [`src/app/admin/invoices/[id]/page.tsx`](src/app/admin/invoices/[id]/page.tsx):
   - Fixed "Owner will connect" rate pills: centered text and icons horizontally and vertically (`text-center`, `justify-center`, `items-center`) with `whitespace-nowrap`, eliminating awkward two-line text wrapping and right-aligned text displacement inside oval borders.
   - Added inline phone icon (`<Phone className="w-3 h-3 text-amber-600 shrink-0" />`) and soft champagne amber styling with subtle shadow (`shadow-2xs`) inside a right-aligned cell container (`flex items-center justify-end`) for balanced table aesthetics.

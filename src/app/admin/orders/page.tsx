@@ -225,7 +225,7 @@ function OrdersContent() {
         );
         if (data.order) {
           setOrders((prev) =>
-            statusFilter !== 'all' && data.order.status !== statusFilter
+            statusFilter !== 'all' && statusFilter !== 'specialty_range' && data.order.status !== statusFilter
               ? prev.filter((o) => o._id !== orderId)
               : prev.map((o) => (o._id === orderId ? { ...o, ...data.order } : o))
           );
@@ -269,7 +269,7 @@ function OrdersContent() {
         );
         if (data.order) {
           setOrders((prev) =>
-            statusFilter !== 'all' && data.order.status !== statusFilter
+            statusFilter !== 'all' && statusFilter !== 'specialty_range' && data.order.status !== statusFilter
               ? prev.filter((o) => o._id !== verifiedOrderId)
               : prev.map((o) => (o._id === verifiedOrderId ? { ...o, ...data.order } : o))
           );
@@ -468,6 +468,7 @@ function OrdersContent() {
 
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
+    { value: 'specialty_range', label: 'Specialty Range' },
     { value: 'received', label: 'Received (In Wash)' },
     { value: 'in_process', label: 'In Pressing / Cleaning' },
     { value: 'ready', label: 'Ready for Collection' },
