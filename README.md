@@ -129,7 +129,18 @@ npm run lint         # ESLint check
 
 ## Change Log
 
-- **2026-11-15:** Refined and polished the pricing table UI design in [`RateCalculator.tsx`](src/components/RateCalculator.tsx) to eliminate visual clutter and text wrapping:
+- **2026-11-16:** Polished digital and printable invoice line items design in [`src/app/invoice/[id]/page.tsx`](src/app/invoice/[id]/page.tsx) and [`src/app/admin/invoices/[id]/page.tsx`](src/app/admin/invoices/[id]/page.tsx):
+  - Fixed "Owner will connect" rate pills: centered text and icons horizontally and vertically (`text-center`, `justify-center`, `items-center`) with `whitespace-nowrap`, eliminating awkward two-line text wrapping and right-aligned text displacement inside oval borders.
+  - Added inline phone icon (`<Phone className="w-3 h-3 text-amber-600 shrink-0" />`) and soft champagne amber styling with subtle shadow (`shadow-2xs`) inside a right-aligned cell container (`flex items-center justify-end`) for balanced table aesthetics.
+  - Redesigned status badges: streamlined "Quote on Inspection" garment pill and "Pending" total pill with pill-rounded styling and zero text breakage.
+  - Added `overflow-x-auto` and `min-w-[560px]` to the invoice table container to preserve clean, uncompressed column layouts on mobile devices.
+  - Enhanced specialty item notification banner to display whenever an order contains range items awaiting owner inspection, providing clear context to customers.
+
+- **2026-11-16:** Enhanced pricing table button alignment and mobile responsiveness in [`RateCalculator.tsx`](src/components/RateCalculator.tsx):
+  - Fixed action buttons (`+ DC` and `+ Iron`) in the "Add to Bill" column to strictly enforce uniform dimensions (`w-[62px] h-8`), centered flex alignment, and `whitespace-nowrap`, completely preventing text wrapping into stacked two-line buttons.
+  - Implemented an invisible placeholder spacer (`<span className="w-[62px] h-8 shrink-0" />`) in the second action slot for items without steam press rates (e.g., `Leather Jacket`, `Shoes`), keeping all `+ DC` buttons in a single, perfectly aligned vertical column instead of floating to the right.
+  - Unified rate columns for specialty range items (`Sherwani`, `Saree`, `Lehenga`, `Gown`, `Suits`) using `colSpan={2}` with a single centered badge (`[📞 Owner will connect with you]`), removing duplicate side-by-side pills and freeing up proportional table column widths.
+  - Guaranteed robust responsiveness across all devices: applied `min-w-[580px] sm:min-w-[620px]` to the table with horizontal overflow support, added a subtle mobile swipe hint (`sm:hidden`), and added `whitespace-nowrap` on garment names and `shrink-0` on unit/type badges so item titles never awkwardly wrap across multiple lines.
   - Streamlined standard item rows by replacing heavy green rectangular boxes on 50% advances with a crisp, subtle sub-line (`50% Adv: ₹...` in emerald green) below each rate.
   - Fixed range items (e.g. `Sherwani`, `Saree`, `Lehenga`, `Gown`, `Suits`) to render a sleek, single-line pill (`[📞 Owner will connect with you]`) with `whitespace-nowrap` and soft champagne styling, eliminating awkward 2-line text wraps and oversized oval bubbles.
   - Removed repetitive duplicate text from garment descriptions and restored consistent brand action buttons (`+ DC` in blue, `+ Iron` in slate).

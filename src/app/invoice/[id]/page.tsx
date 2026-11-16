@@ -583,16 +583,16 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           </div>
 
           {/* Line Items Table */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[560px]">
               <thead className="bg-slate-900 text-white font-bold uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Garment / Service Description</th>
+                  <th className="py-3 px-4 min-w-[180px]">Garment / Service Description</th>
                   <th className="py-3 px-4 text-center">Service Type</th>
-                  <th className="py-3 px-4 text-right">Rate</th>
+                  <th className="py-3 px-4 text-right min-w-[150px]">Rate</th>
                   <th className="py-3 px-4 text-center">Qty</th>
-                  <th className="py-3 px-4 text-right">Total (₹)</th>
+                  <th className="py-3 px-4 text-right min-w-[90px]">Total (₹)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -608,9 +608,9 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                       <td className="py-3 px-4 font-mono text-slate-400">{index + 1}</td>
                       <td className="py-3 px-4 font-bold text-slate-900">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span>{item.name}</span>
+                          <span className="whitespace-nowrap">{item.name}</span>
                           {isPendingQuote && (
-                            <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded">
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200/90 px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
                               Quote on Inspection
                             </span>
                           )}
@@ -620,15 +620,18 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                        <span className="text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 whitespace-nowrap">
                           {item.serviceType.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right font-medium text-slate-700">
                         {isPendingQuote ? (
-                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-block">
-                            Owner will connect
-                          </span>
+                          <div className="flex items-center justify-end">
+                            <span className="inline-flex items-center justify-center gap-1.5 text-[11px] font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-3 py-1 rounded-full whitespace-nowrap shadow-2xs text-center">
+                              <Phone className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Owner will connect</span>
+                            </span>
+                          </div>
                         ) : (
                           `₹${item.rate}`
                         )}
@@ -636,7 +639,11 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                       <td className="py-3 px-4 text-center font-bold text-slate-900">{item.quantity}</td>
                       <td className="py-3 px-4 text-right font-extrabold text-slate-900">
                         {isPendingQuote ? (
-                          <span className="text-xs font-bold text-amber-700">Pending</span>
+                          <div className="flex items-center justify-end">
+                            <span className="inline-flex items-center justify-center text-[11px] font-bold text-amber-700 bg-amber-50/80 border border-amber-200/70 px-2.5 py-0.5 rounded-full whitespace-nowrap text-center">
+                              Pending
+                            </span>
+                          </div>
                         ) : (
                           `₹${item.total}`
                         )}
@@ -648,13 +655,13 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             </table>
           </div>
 
-          {hasRangePriceItems(invoice.items) && invoice.grandTotal === 0 && (
+          {hasRangePriceItems(invoice.items) && (
             <div className="no-print bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl flex items-start gap-3 text-xs">
               <span className="text-lg">📞</span>
               <div>
                 <p className="font-bold text-sm text-amber-950">Specialty Garments Inspection in Progress</p>
                 <p className="text-amber-800 mt-0.5">
-                  Your order contains specialty items where rates depend on fabric &amp; embroidery. Our store owner will inspect your garments and connect with you to confirm your final quote before payment.
+                  Your order contains specialty items where rates depend on fabric &amp; embroidery. Our store owner will inspect your garments and connect with you to confirm your final quote.
                 </p>
               </div>
             </div>

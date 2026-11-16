@@ -222,24 +222,32 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
 
             {/* Table Card matching reference */}
             <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+              {/* Mobile swipe hint */}
+              <div className="sm:hidden px-4 py-2 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>Scroll table sideways for all rates &amp; actions</span>
+                <span className="text-brand-600 font-bold">&rarr;</span>
+              </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+                <table className="w-full text-left text-xs sm:text-sm min-w-[580px] sm:min-w-[620px]">
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-5">Garment / Item</th>
-                      <th className="py-3.5 px-4 text-center">
-                        <span className="text-slate-700 font-bold">Dry Clean</span>
-                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                      <th className="py-3.5 px-4 sm:px-5 min-w-[190px]">Garment / Item</th>
+                      <th className="py-3.5 px-3 sm:px-4 text-center min-w-[125px]">
+                        <span className="text-slate-700 font-bold whitespace-nowrap">Dry Clean</span>
+                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal whitespace-nowrap">
                           Rate &amp; 50% Adv
                         </span>
                       </th>
-                      <th className="py-3.5 px-4 text-center">
-                        <span className="text-slate-700 font-bold">Steam Iron</span>
-                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                      <th className="py-3.5 px-3 sm:px-4 text-center min-w-[125px]">
+                        <span className="text-slate-700 font-bold whitespace-nowrap">Steam Iron</span>
+                        <span className="block text-[10px] text-slate-400 font-medium normal-case tracking-normal whitespace-nowrap">
                           Rate &amp; 50% Adv
                         </span>
                       </th>
-                      <th className="py-3.5 px-5 text-right">Add to Bill</th>
+                      <th className="py-3.5 px-4 sm:px-5 text-right min-w-[145px] whitespace-nowrap">
+                        Add to Bill
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -252,92 +260,89 @@ export default function RateCalculator({ initialServices }: RateCalculatorProps)
                     ) : (
                       displayedServices.map((item, idx) => {
                         const isRange = isRangePriceItem(item);
+                        const hasIron = Boolean(item.steamIronRate && item.steamIronRate > 0);
+
                         return (
                           <tr
                             key={item._id || item.id || `${item.category}-${item.name}-${idx}`}
                             className="hover:bg-slate-50/70 transition group"
                           >
-                            <td className="py-3.5 px-5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-slate-900">{item.name}</span>
-                                <span className="text-[10px] uppercase font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                            <td className="py-3.5 px-4 sm:px-5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 whitespace-nowrap">{item.name}</span>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
                                   {item.unit}
                                 </span>
                                 {isRange && (
-                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
                                     Specialty Fabric
                                   </span>
                                 )}
                               </div>
                               {item.rateRangeText && (
-                                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+                                <p className="text-[11px] text-slate-500 font-normal mt-0.5 whitespace-nowrap">
                                   {item.rateRangeText}
                                 </p>
                               )}
                             </td>
 
-                            <td className="py-3.5 px-4 text-center">
-                              {isRange ? (
-                                <div className="flex flex-col items-center justify-center">
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-2.5 py-1 rounded-lg whitespace-nowrap shadow-2xs">
-                                    <PhoneCall className="w-3 h-3 text-amber-600 shrink-0" />
-                                    <span>Owner will connect with you</span>
-                                  </span>
+                            {isRange ? (
+                              <td colSpan={2} className="py-3.5 px-3 sm:px-4 text-center">
+                                <div className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-3.5 py-1.5 rounded-full shadow-2xs whitespace-nowrap">
+                                  <PhoneCall className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>Owner will connect with you</span>
                                 </div>
-                              ) : (
-                                <div className="text-center">
-                                  <div className="font-extrabold text-slate-900 text-sm">₹{item.dryCleanRate}</div>
+                              </td>
+                            ) : (
+                              <>
+                                <td className="py-3.5 px-3 sm:px-4 text-center">
+                                  <div className="font-extrabold text-slate-900 text-sm whitespace-nowrap">
+                                    ₹{item.dryCleanRate}
+                                  </div>
                                   <div className="text-[11px] font-semibold text-emerald-600 mt-0.5 whitespace-nowrap">
                                     50% Adv: ₹{Math.ceil(item.dryCleanRate * 0.5)}
                                   </div>
-                                </div>
-                              )}
-                            </td>
+                                </td>
 
-                            <td className="py-3.5 px-4 text-center">
-                              {isRange ? (
-                                item.steamIronRate && item.steamIronRate > 0 ? (
-                                  <div className="flex flex-col items-center justify-center">
-                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-50/90 border border-amber-200/90 px-2.5 py-1 rounded-lg whitespace-nowrap shadow-2xs">
-                                      <PhoneCall className="w-3 h-3 text-amber-600 shrink-0" />
-                                      <span>Owner will connect with you</span>
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-300 font-normal">&mdash;</span>
-                                )
-                              ) : (
-                                item.steamIronRate && item.steamIronRate > 0 ? (
-                                  <div className="text-center">
-                                    <div className="font-extrabold text-slate-700 text-sm">₹{item.steamIronRate}</div>
-                                    <div className="text-[11px] font-semibold text-emerald-600 mt-0.5 whitespace-nowrap">
-                                      50% Adv: ₹{Math.ceil(item.steamIronRate * 0.5)}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-300 font-normal">&mdash;</span>
-                                )
-                              )}
-                            </td>
+                                <td className="py-3.5 px-3 sm:px-4 text-center">
+                                  {hasIron ? (
+                                    <>
+                                      <div className="font-extrabold text-slate-700 text-sm whitespace-nowrap">
+                                        ₹{item.steamIronRate}
+                                      </div>
+                                      <div className="text-[11px] font-semibold text-emerald-600 mt-0.5 whitespace-nowrap">
+                                        50% Adv: ₹{Math.ceil((item.steamIronRate || 0) * 0.5)}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-300 font-normal">&mdash;</span>
+                                  )}
+                                </td>
+                              </>
+                            )}
 
-                            <td className="py-3.5 px-5 text-right">
-                              <div className="inline-flex items-center gap-1.5 justify-end">
+                            <td className="py-3.5 px-4 sm:px-5 text-right">
+                              <div className="flex items-center justify-end gap-1.5 w-full">
                                 <button
+                                  type="button"
                                   onClick={() => addToCart(item, 'dry_clean')}
-                                  className="bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 font-bold text-xs px-2.5 py-1.5 rounded-lg border border-brand-200 transition cursor-pointer shadow-2xs"
+                                  className="w-[62px] h-8 shrink-0 bg-brand-50 hover:bg-brand-600 hover:text-white text-brand-700 font-bold text-xs rounded-lg border border-brand-200 transition cursor-pointer shadow-2xs flex items-center justify-center whitespace-nowrap active:scale-95"
                                   title="Add Dry Clean to Estimate"
                                 >
                                   + DC
                                 </button>
-                                {item.steamIronRate && item.steamIronRate > 0 ? (
+                                {hasIron ? (
                                   <button
+                                    type="button"
                                     onClick={() => addToCart(item, 'steam_iron')}
-                                    className="bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 font-bold text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 transition cursor-pointer shadow-2xs"
+                                    className="w-[62px] h-8 shrink-0 bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 font-bold text-xs rounded-lg border border-slate-200 transition cursor-pointer shadow-2xs flex items-center justify-center whitespace-nowrap active:scale-95"
                                     title="Add Steam Press to Estimate"
                                   >
                                     + Iron
                                   </button>
-                                ) : null}
+                                ) : (
+                                  <span className="w-[62px] h-8 shrink-0 inline-block" aria-hidden="true" />
+                                )}
                               </div>
                             </td>
                           </tr>

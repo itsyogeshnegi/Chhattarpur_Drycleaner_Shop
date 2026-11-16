@@ -231,21 +231,23 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>{item.name}</span>
                       {isPending && (
-                        <span className="text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded">
+                        <span className="text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
                           Owner to Quote
                         </span>
                       )}
                     </div>
                     {item.notes && <p className="text-[10px] text-slate-400 italic mt-0.5">{item.notes}</p>}
                   </td>
-                  <td className="py-2.5 text-center uppercase text-[10px] font-semibold text-slate-500">
+                  <td className="py-2.5 text-center uppercase text-[10px] font-semibold text-slate-500 whitespace-nowrap">
                     {item.serviceType.replace('_', ' ')}
                   </td>
                   <td className="py-2.5 text-right font-medium">
                     {isPending ? (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                        Owner to Quote
-                      </span>
+                      <div className="flex items-center justify-end">
+                        <span className="inline-flex items-center justify-center text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap text-center">
+                          Owner to Quote
+                        </span>
+                      </div>
                     ) : (
                       `₹${item.rate}`
                     )}
@@ -253,7 +255,11 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
                   <td className="py-2.5 text-center font-bold">{item.quantity}</td>
                   <td className="py-2.5 text-right font-extrabold">
                     {isPending ? (
-                      <span className="text-[11px] font-bold text-amber-700">Pending</span>
+                      <div className="flex items-center justify-end">
+                        <span className="inline-flex items-center justify-center text-[10px] font-bold text-amber-700 bg-amber-50/80 border border-amber-200/70 px-2 py-0.5 rounded-full whitespace-nowrap text-center">
+                          Pending
+                        </span>
+                      </div>
                     ) : (
                       `₹${item.total}`
                     )}
