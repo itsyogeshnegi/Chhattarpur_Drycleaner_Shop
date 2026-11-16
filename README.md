@@ -129,6 +129,11 @@ npm run lint         # ESLint check
 
 ## Change Log
 
+- **2026-11-16:** Updated invoice number generation to strict 5-digit sequential format starting at `00001` and cleaned `orderinvoices` collection:
+  - Replaced random suffix generation in [`/api/orders/create`](src/app/api/orders/create/route.ts) with pure sequential 5-digit invoice numbers starting at `00001` (e.g. `AHDC-2026-00001`, `AHDC-2026-00002`, `AHDC-2026-00003`, ...).
+  - Implemented automatic maximum sequence detection query (`maxSeq + 1`) to guarantee contiguous sequential numbering across both Counter POS orders and online pickup bookings.
+  - Safely cleaned the `orderinvoices` collection in MongoDB Atlas (`alharam_drycleaners`), wiping all 18 historical test orders while leaving all other collections (`users`, `serviceitems`, `shopsettings`, `reviews`) completely intact.
+
 - **2026-11-16:** Added "Specialty Range" filter option to Admin Orders & Deliveries dashboard ([`src/app/admin/orders/page.tsx`](src/app/admin/orders/page.tsx)):
   - Added `Specialty Range` to the status filter dropdown, allowing store staff and admin to instantly filter the orders list to only orders containing specialty garments awaiting owner price confirmation or inspection (e.g. *Sherwani*, *Saree*, *Lehenga*, *Gown*, *Suits*).
   - Updated backend API ([`GET /api/orders`](src/app/api/orders/route.ts)) to support `status=specialty_range` filtering via MongoDB regex matching on garment names and inspection notes, seamlessly combining with invoice/customer search and pagination.

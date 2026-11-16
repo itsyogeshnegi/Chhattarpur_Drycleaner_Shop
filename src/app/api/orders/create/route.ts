@@ -109,19 +109,33 @@ export async function POST(req: NextRequest) {
     const balanceAmount = grandTotal - paid;
     const paymentStatus = paid >= grandTotal ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
 
-    // Generate unique sequential invoice number
+    // Generate sequential 5-digit invoice number starting at 00001 (e.g. AHDC-2026-00001)
     const currentYear = new Date().getFullYear();
     const prefix = (typeof settings?.invoicePrefix === 'string' && settings.invoicePrefix) || 'AHDC';
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const countToday = await OrderInvoice.countDocuments({
-      createdAt: { $gte: startOfToday },
-    });
 
-    // Format: AHDC-YYYY-XXXX (e.g. AHDC-2026-0042)
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const sequenceNumber = String(countToday + 1).padStart(3, '0');
-    const invoiceNumber = `${prefix}-${currentYear}-${sequenceNumber}${randomSuffix.toString().slice(-2)}`;
+    // Find highest existing sequence number for this prefix and year
+    const ordersThisYear = await OrderInvoice.find(
+      { invoiceNumber: new RegExp(`^${prefix}-${currentYear}-(\\d+)$`) },
+      { invoiceNumber: 1 }
+    ).lean();
+
+    let maxSeq = 0;
+    for (const ord of ordersThisYear) {
+      const match = ord.invoiceNumber.match(new RegExp(`^${prefix}-${currentYear}-(\\d+)$`));
+      if (match && match[1]) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxSeq) {
+          maxSeq = val;
+        }
+      }
+    }
+
+    let nextSequence = maxSeq + 1;
+    let invoiceNumber = `${prefix}-${currentYear}-${String(nextSequence).padStart(5, '0')}`;
+    while (await OrderInvoice.exists({ invoiceNumber })) {
+      nextSequence++;
+      invoiceNumber = `${prefix}-${currentYear}-${String(nextSequence).padStart(5, '0')}`;
+    }
 
     const cleanPhone = normalizeIndianPhone(customer.phone);
     const cleanEmail = typeof customer.email === 'string' ? customer.email.trim() : '';
