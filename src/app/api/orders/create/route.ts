@@ -104,10 +104,16 @@ export async function POST(req: NextRequest) {
     const taxAmount = Math.round((netAfterDiscount * taxRate) / 100);
     const grandTotal = netAfterDiscount + taxAmount;
 
-    // Payment status calculation
+    // Payment status calculation: an order cannot be 'paid' if grandTotal is 0 or any item is awaiting quote (rate 0)
+    const hasZeroRateItems = validatedItems.some((it) => it.rate === 0);
     const paid = Math.min(grandTotal, Math.max(0, Number(paidAmount) || 0));
     const balanceAmount = grandTotal - paid;
-    const paymentStatus = paid >= grandTotal ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
+    const paymentStatus =
+      grandTotal > 0 && !hasZeroRateItems && paid >= grandTotal
+        ? 'paid'
+        : paid > 0
+        ? 'partial'
+        : 'unpaid';
 
     // Generate sequential 5-digit invoice number starting at 00001 (e.g. AHDC-2026-00001)
     const currentYear = new Date().getFullYear();

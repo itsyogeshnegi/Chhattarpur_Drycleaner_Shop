@@ -49,6 +49,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const hasZeroRateItem = invoice.items.some((it) => it.rate === 0);
+    if (invoice.grandTotal <= 0 || hasZeroRateItem) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            'Pricing for specialty garments is currently being finalized by our store owner. Payment will be enabled once your quote is confirmed.',
+        },
+        { status: 400 }
+      );
+    }
+
     const opts = calculatePaymentOptions(invoice.grandTotal, invoice.paidAmount);
     if (opts.remaining <= 0) {
       return NextResponse.json(

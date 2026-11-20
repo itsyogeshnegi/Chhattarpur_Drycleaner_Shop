@@ -20,6 +20,7 @@ import {
   Copy,
   Check,
   RefreshCw,
+  PhoneCall,
 } from 'lucide-react';
 import {
   buildRazorpayMeUrl,
@@ -421,6 +422,15 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     }
   });
 
+  const isQuotePending =
+    (hasRangePriceItems(invoice.items) || invoice.items.some((it) => it.rate === 0)) &&
+    (invoice.grandTotal === 0 || invoice.items.some((it) => it.rate === 0));
+
+  const rangeItemNames = invoice.items
+    .filter((it) => isRangePriceItem({ name: it.name }) || it.rate === 0)
+    .map((it) => it.name)
+    .join(', ');
+
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 print:bg-white print:p-0 print:m-0">
       <div className="max-w-3xl mx-auto space-y-6 print:max-w-none print:m-0 print:space-y-0">
@@ -570,12 +580,14 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                 Payment Status:{' '}
                 <span
                   className={`uppercase font-black px-2 py-0.5 rounded ${
-                    invoice.paymentStatus === 'paid'
+                    isQuotePending
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : invoice.paymentStatus === 'paid'
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-amber-100 text-amber-800'
                   }`}
                 >
-                  {invoice.paymentStatus}
+                  {isQuotePending ? 'Quote Pending' : invoice.paymentStatus}
                 </span>
               </p>
               <p className="text-slate-500">Method: {invoice.paymentMethod.toUpperCase()}</p>
@@ -702,7 +714,11 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
 
               <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
                 <span className="font-extrabold text-slate-900 text-sm">Grand Total:</span>
-                <span className="font-extrabold text-xl text-brand-700">₹{invoice.grandTotal}/-</span>
+                <span className="font-extrabold text-xl text-brand-700">
+                  {isQuotePending && invoice.grandTotal === 0
+                    ? 'Quote on Inspection'
+                    : `₹${invoice.grandTotal}/-`}
+                </span>
               </div>
 
               {invoice.paidAmount > 0 && (
@@ -714,8 +730,18 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
 
               <div className="flex justify-between items-baseline pt-1 border-t border-dashed border-slate-200 font-bold">
                 <span className="text-slate-800">Balance Due:</span>
-                <span className={invoice.balanceAmount > 0 ? 'text-amber-600 text-sm' : 'text-emerald-600'}>
-                  ₹{invoice.balanceAmount}
+                <span
+                  className={
+                    invoice.balanceAmount > 0
+                      ? 'text-amber-600 text-sm'
+                      : isQuotePending && invoice.grandTotal === 0
+                      ? 'text-amber-700 text-xs font-semibold'
+                      : 'text-emerald-600'
+                  }
+                >
+                  {isQuotePending && invoice.grandTotal === 0
+                    ? 'Pending Owner Quote'
+                    : `₹${invoice.balanceAmount}`}
                 </span>
               </div>
             </div>
@@ -757,7 +783,37 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           )}
 
           {/* ONLINE RAZORPAY PAYMENT (Hidden when printing) */}
-          {invoice.paymentStatus !== 'paid' && (
+          {isQuotePending ? (
+            <div className="no-print bg-amber-50/90 border border-amber-200/90 rounded-2xl p-6 text-center space-y-3.5 shadow-2xs">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700">
+                <PhoneCall className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Specialty Garment Inspection in Progress
+                </h3>
+                <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                  Your order contains specialty garments ({rangeItemNames || 'Range Items'}) where exact pricing is determined upon physical inspection by our master dry cleaner.
+                </p>
+              </div>
+              <div className="bg-white/90 border border-amber-200/80 rounded-xl p-3 max-w-md mx-auto text-xs text-amber-950 font-medium">
+                💳 <strong>Online Payment will appear here:</strong> As soon as the store owner confirms your quote with you, the 50% advance and full payment options will be activated on this page.
+              </div>
+              <div className="pt-1 flex justify-center">
+                <a
+                  href={`https://wa.me/918700548416?text=${encodeURIComponent(
+                    `Hello AL-HARAM Drycleaner's, I am inquiring about the quote for my Invoice #${invoice.invoiceNumber} (${invoice.customer.name}).`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Discuss Quote with Owner on WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          ) : invoice.paymentStatus !== 'paid' && invoice.grandTotal > 0 ? (
             <div className="no-print space-y-3">
               {paymentError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-medium flex items-center gap-2">
@@ -986,7 +1042,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

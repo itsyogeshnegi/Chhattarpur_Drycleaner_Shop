@@ -91,6 +91,19 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const isQuotePending =
+    (invoice.grandTotal === 0 && invoice.paidAmount === 0) ||
+    invoice.items.some((it) => {
+      const isRange =
+        isRangePriceItem({ name: it.name }) ||
+        Boolean(
+          it.notes &&
+            (it.notes.toLowerCase().includes('owner will connect') ||
+              it.notes.toLowerCase().includes('inspection'))
+        );
+      return isRange && it.rate === 0;
+    });
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto print:max-w-none print:m-0 print:space-y-0 print:w-full">
       {/* Top Toolbar (Hidden on print) */}
@@ -197,7 +210,16 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
           <div className="text-right space-y-1">
             <p className="font-bold text-slate-400 uppercase text-[9px]">Billing & Staff</p>
             <p className="text-slate-700">Operator: <span className="font-bold">{invoice.createdBy}</span></p>
-            <p className="text-slate-700">Payment: <span className="font-bold uppercase">{invoice.paymentStatus}</span></p>
+            <p className="text-slate-700">
+              Payment:{' '}
+              {isQuotePending ? (
+                <span className="font-bold text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full text-[10px]">
+                  QUOTE PENDING
+                </span>
+              ) : (
+                <span className="font-bold uppercase">{invoice.paymentStatus}</span>
+              )}
+            </p>
             {activeInvoiceType === 'internal' && (
               <p className="text-amber-800 font-bold">
                 Rack Slot: <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-200">{invoice.rackLocation || 'Not Tagged'}</span>
@@ -291,10 +313,18 @@ export default function DualInvoicePage({ params }: { params: Promise<{ id: stri
               <p className="text-emerald-700 font-bold">Discount: - ₹{invoice.discountAmount}</p>
             )}
             <p className="text-base font-black text-slate-900">
-              Net Total: ₹{invoice.grandTotal}/-
+              Net Total:{' '}
+              {isQuotePending && invoice.grandTotal === 0 ? (
+                <span className="text-amber-800 text-sm font-black">Quote on Inspection</span>
+              ) : (
+                `₹${invoice.grandTotal}/-`
+              )}
             </p>
             <p className="text-[11px] font-bold text-slate-600">
-              Paid: ₹{invoice.paidAmount} | Balance: <span className="text-amber-600">₹{invoice.balanceAmount}</span>
+              Paid: ₹{invoice.paidAmount} | Balance:{' '}
+              <span className="text-amber-600">
+                {isQuotePending && invoice.grandTotal === 0 ? 'Pending Quote' : `₹${invoice.balanceAmount}`}
+              </span>
             </p>
           </div>
         </div>

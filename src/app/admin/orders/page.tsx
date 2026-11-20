@@ -19,6 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
   PhoneCall,
+  Edit3,
+  Tag,
+  Sparkles,
+  MessageCircle,
 } from 'lucide-react';
 import { generateWhatsAppInvoiceUrl, generateWhatsAppReadyAlertUrl } from '@/lib/whatsapp';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
@@ -29,7 +33,7 @@ interface OrderRecord {
   invoiceNumber: string;
   customer: { name: string; phone: string; address?: string };
   status: 'received' | 'in_process' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
-  items: Array<{ name: string; serviceType: string; quantity: number; total: number; notes?: string }>;
+  items: Array<{ name: string; serviceType: string; quantity: number; rate?: number; total: number; notes?: string }>;
   grandTotal: number;
   paidAmount: number;
   balanceAmount: number;
@@ -146,11 +150,93 @@ function OrdersContent() {
     setSettleConfirmation(null);
   };
 
+  // Set Price / Confirm Quote Modal
+  const [priceModalOrder, setPriceModalOrder] = useState<OrderRecord | null>(null);
+  const [editingItems, setEditingItems] = useState<
+    Array<{ name: string; serviceType: string; rate: number; quantity: number; notes?: string }>
+  >([]);
+  const [priceUpdating, setPriceUpdating] = useState(false);
+  const [priceError, setPriceError] = useState('');
+  const [priceSaveSuccess, setPriceSaveSuccess] = useState(false);
+  const [whatsappQuoteUrl, setWhatsappQuoteUrl] = useState('');
+
+  const isOrderPendingQuote = (ord: OrderRecord): boolean => {
+    if (ord.grandTotal === 0 && ord.paidAmount === 0) return true;
+    return ord.items.some((it) => {
+      const isRange =
+        isRangePriceItem({ name: it.name }) ||
+        Boolean(
+          it.notes &&
+            (it.notes.toLowerCase().includes('owner will connect') ||
+              it.notes.toLowerCase().includes('inspection'))
+        );
+      return isRange && (!it.rate || it.rate === 0);
+    });
+  };
+
+  const openPriceModal = (ord: OrderRecord) => {
+    setPriceModalOrder(ord);
+    setEditingItems(
+      ord.items.map((it) => ({
+        name: it.name,
+        serviceType: it.serviceType,
+        rate: it.rate || 0,
+        quantity: it.quantity || 1,
+        notes: it.notes || '',
+      }))
+    );
+    setPriceError('');
+    setPriceSaveSuccess(false);
+    setWhatsappQuoteUrl('');
+  };
+
+  const handleRateChange = (idx: number, newRate: number) => {
+    setEditingItems((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, rate: Math.max(0, newRate) } : item))
+    );
+  };
+
+  const handleSavePrices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!priceModalOrder) return;
+    setPriceUpdating(true);
+    setPriceError('');
+
+    try {
+      const res = await fetch(`/api/orders/${priceModalOrder.invoiceNumber}/price`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editingItems,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Failed to update prices');
+      }
+
+      setPriceSaveSuccess(true);
+      if (data.whatsappUrl) {
+        setWhatsappQuoteUrl(data.whatsappUrl);
+      }
+
+      // Update in local state
+      setOrders((prev) =>
+        prev.map((o) => (o._id === priceModalOrder._id ? { ...o, ...data.order } : o))
+      );
+    } catch (err: unknown) {
+      setPriceError(err instanceof Error ? err.message : 'Failed to update pricing');
+    } finally {
+      setPriceUpdating(false);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useBodyScrollLock(Boolean(otpModalOrder) || Boolean(paymentModalOrder));
+  useBodyScrollLock(Boolean(otpModalOrder) || Boolean(paymentModalOrder) || Boolean(priceModalOrder));
 
   const toggleOrderExpand = (orderId: string) => {
     setExpandedOrders((prev) => ({
@@ -639,9 +725,27 @@ function OrdersContent() {
                     </div>
 
                     <div className="text-right">
-                      <span className="font-bold text-slate-900 text-sm">₹{ord.grandTotal}</span>
-                      <div className="mt-0.5 flex flex-col items-end gap-0.5">
-                        {ord.balanceAmount > 0 ? (
+                      {isOrderPendingQuote(ord) ? (
+                        <span className="font-black text-amber-800 text-xs">Quote Pending</span>
+                      ) : (
+                        <span className="font-bold text-slate-900 text-sm">₹{ord.grandTotal}</span>
+                      )}
+                      <div className="mt-0.5 flex flex-col items-end gap-1">
+                        {isOrderPendingQuote(ord) ? (
+                          <>
+                            <span className="inline-flex items-center text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full">
+                              Inspection Needed
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openPriceModal(ord)}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-2.5 py-0.5 rounded-full shadow-2xs transition"
+                            >
+                              <Edit3 className="w-2.5 h-2.5" />
+                              Set Price
+                            </button>
+                          </>
+                        ) : ord.balanceAmount > 0 ? (
                           <>
                             {ord.paidAmount > 0 && (
                               <span className="text-[10px] text-slate-400 font-medium">
@@ -656,9 +760,13 @@ function OrdersContent() {
                               Due ₹{ord.balanceAmount} · Mark Paid
                             </button>
                           </>
-                        ) : (
+                        ) : ord.grandTotal > 0 ? (
                           <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                             ✓ Paid
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            Quote Pending
                           </span>
                         )}
                       </div>
@@ -683,9 +791,15 @@ function OrdersContent() {
                           {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
                         </span>
                         {hasRangeItems && (
-                          <span className="text-[9px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded">
-                            Range Items
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openPriceModal(ord)}
+                            className="text-[9px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 transition"
+                            title="Set or update garment prices"
+                          >
+                            <Edit3 className="w-2.5 h-2.5" />
+                            {isOrderPendingQuote(ord) ? 'Set Price' : 'Edit Price'}
+                          </button>
                         )}
                       </div>
                       {ord.items.length > 2 && (
@@ -901,9 +1015,20 @@ function OrdersContent() {
                             {totalPieces} {totalPieces === 1 ? 'item' : 'items'}
                           </span>
                           {hasRangeItems && (
-                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded">
-                              Specialty Range
-                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded">
+                                Specialty Range
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openPriceModal(ord)}
+                                className="text-[10px] font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300 border border-amber-300 px-1.5 py-0.2 rounded inline-flex items-center gap-0.5 transition cursor-pointer"
+                                title="Set or update garment prices"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                                {isOrderPendingQuote(ord) ? 'Set Price' : 'Edit Price'}
+                              </button>
+                            </div>
                           )}
                           {ord.items.length > 2 && (
                             <button
@@ -952,9 +1077,29 @@ function OrdersContent() {
 
                       {/* Payment */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        <div className="font-bold text-slate-900 text-sm">₹{ord.grandTotal}</div>
-                        <div className="mt-1 flex flex-col items-start gap-0.5">
-                          {ord.balanceAmount > 0 ? (
+                        <div className="font-bold text-slate-900 text-sm">
+                          {isOrderPendingQuote(ord) ? (
+                            <span className="text-amber-800 text-xs font-black">Quote Pending</span>
+                          ) : (
+                            `₹${ord.grandTotal}`
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-col items-start gap-1">
+                          {isOrderPendingQuote(ord) ? (
+                            <>
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded-md">
+                                Price on Inspection
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openPriceModal(ord)}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded-md shadow-2xs transition cursor-pointer"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                                Set Price
+                              </button>
+                            </>
+                          ) : ord.balanceAmount > 0 ? (
                             <>
                               {ord.paidAmount > 0 && (
                                 <span className="text-[10px] text-slate-400 font-medium">
@@ -972,9 +1117,13 @@ function OrdersContent() {
                                 Mark Paid
                               </button>
                             </>
-                          ) : (
+                          ) : ord.grandTotal > 0 ? (
                             <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
                               ✓ Paid
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                              Quote Pending
                             </span>
                           )}
                         </div>
@@ -1654,6 +1803,208 @@ function OrdersContent() {
                   </>
                 );
               })()}
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Set Garment Prices & Finalize Quote Modal */}
+      {mounted && priceModalOrder && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] overflow-hidden overscroll-none bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-200"
+          onClick={() => {
+            if (!priceUpdating) setPriceModalOrder(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base leading-tight">
+                    Set Price &amp; Finalize Quote
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Discuss with owner and confirm garment cleaning rates
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPriceModalOrder(null)}
+                disabled={priceUpdating}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Order & Customer Summary */}
+            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-black text-sm text-brand-700">
+                  {priceModalOrder.invoiceNumber}
+                </span>
+                <span className="font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200 text-[10px]">
+                  Quote Pending
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-700">
+                <span className="font-semibold">{priceModalOrder.customer.name}</span>
+                <span className="font-mono text-slate-500 text-[11px]">{priceModalOrder.customer.phone}</span>
+              </div>
+            </div>
+
+            {/* Price Edit Form */}
+            <form onSubmit={handleSavePrices} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Garment Rates (₹ per piece)
+                </label>
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                  {editingItems.map((item, idx) => {
+                    const itemTotal = (item.rate || 0) * (item.quantity || 1);
+                    const isRange =
+                      isRangePriceItem({ name: item.name }) ||
+                      (item.notes || '').toLowerCase().includes('owner will connect') ||
+                      (item.notes || '').toLowerCase().includes('inspection');
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
+                          isRange ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50/70 border-slate-200'
+                        }`}
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800 text-xs truncate">{item.name}</span>
+                            <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded ${getServiceBadgeClass(item.serviceType)}`}>
+                              {formatServiceLabel(item.serviceType)}
+                            </span>
+                            {isRange && (
+                              <span className="text-[9px] font-bold text-amber-900 bg-amber-200/80 px-1 rounded">
+                                Range Garment
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Quantity: <span className="font-bold text-slate-700">{item.quantity}</span> pc{item.quantity > 1 ? 's' : ''}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500">
+                            <span className="text-slate-400 font-bold text-xs">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.rate === 0 ? '' : item.rate}
+                              placeholder="Set rate"
+                              onChange={(e) => handleRateChange(idx, Number(e.target.value) || 0)}
+                              className="w-20 text-xs font-bold text-slate-900 bg-transparent focus:outline-none text-right"
+                            />
+                            <span className="text-slate-400 text-[10px]">/pc</span>
+                          </div>
+                          <span className="font-mono font-bold text-xs text-slate-900 min-w-[50px] text-right">
+                            = ₹{itemTotal}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Live Financial Calculation Box */}
+              {(() => {
+                const subtotal = editingItems.reduce((acc, it) => acc + (it.rate || 0) * (it.quantity || 1), 0);
+                const advance = Math.ceil(subtotal * 0.5);
+
+                return (
+                  <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-700">
+                      <span>Calculated Grand Total:</span>
+                      <span className="font-extrabold text-slate-900 text-sm">₹{subtotal}/-</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-amber-900 font-semibold border-t border-amber-200/60 pt-1.5">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        50% Advance Requirement (Customer Invoice):
+                      </span>
+                      <span className="font-mono font-black text-amber-800 text-sm">₹{advance}/-</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Once confirmed, the customer will see the final amount and can pay the 50% advance or full payment online via Razorpay or UPI on their bill link.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Status / Errors / Success */}
+              {priceError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{priceError}</span>
+                </div>
+              )}
+
+              {priceSaveSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2.5">
+                  <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Quote Updated Successfully! Customer payment options are now active.</span>
+                  </div>
+                  {whatsappQuoteUrl && (
+                    <a
+                      href={whatsappQuoteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl transition shadow-xs"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Send Updated Quote to Customer on WhatsApp
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={priceUpdating}
+                  onClick={() => setPriceModalOrder(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold transition cursor-pointer"
+                >
+                  {priceSaveSuccess ? 'Close' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={priceUpdating || editingItems.reduce((acc, it) => acc + (it.rate || 0), 0) === 0}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-extrabold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  {priceUpdating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Quote...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Confirm Quote &amp; Enable Payment</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>,
