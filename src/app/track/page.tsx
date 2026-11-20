@@ -17,14 +17,24 @@ import {
   Shirt,
   ShieldCheck,
   KeyRound,
+  PhoneCall,
 } from 'lucide-react';
+import { isRangePriceItem, hasRangePriceItems } from '@/lib/servicePricing';
 
 interface OrderData {
   _id: string;
   invoiceNumber: string;
   customer: { name: string; phone: string; address?: string };
   status: 'received' | 'in_process' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
-  items: Array<{ name: string; serviceType: string; quantity: number; total: number; inspectionImages?: Array<{ url: string; caption?: string }> }>;
+  items: Array<{
+    name: string;
+    serviceType: string;
+    quantity: number;
+    rate?: number;
+    total: number;
+    notes?: string;
+    inspectionImages?: Array<{ url: string; caption?: string }>;
+  }>;
   grandTotal: number;
   paidAmount: number;
   balanceAmount: number;
@@ -36,6 +46,15 @@ interface OrderData {
   deliveryVerifiedAt?: string;
   deliveryVerifiedBy?: string;
 }
+
+const isOrderPendingQuote = (ord?: OrderData | null): boolean => {
+  if (!ord) return false;
+  if (ord.grandTotal === 0 && (!ord.paidAmount || ord.paidAmount === 0)) return true;
+  return (
+    hasRangePriceItems(ord.items) &&
+    Boolean(ord.items?.some((it) => it.rate === 0 || it.rate === undefined || it.total === 0))
+  );
+};
 
 function TrackContent() {
   const searchParams = useSearchParams();
@@ -177,7 +196,12 @@ function TrackContent() {
                 <div>
                   <span className="font-mono font-bold text-slate-900">{ord.invoiceNumber}</span>
                   <p className="text-xs text-slate-500">
-                    {new Date(ord.createdAt).toLocaleDateString()} • {ord.items.length} garments • ₹{ord.grandTotal}
+                    {new Date(ord.createdAt).toLocaleDateString()} • {ord.items.length} garments •{' '}
+                    {isOrderPendingQuote(ord) && ord.grandTotal === 0 ? (
+                      <span className="text-amber-800 font-bold">Quote on Inspection</span>
+                    ) : (
+                      `₹${ord.grandTotal}`
+                    )}
                   </p>
                 </div>
                 <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700">
@@ -351,27 +375,55 @@ function TrackContent() {
                 Garments in this Order ({order.items.length})
               </h3>
               <span className="text-xs font-bold text-slate-700">
-                Total Bill: <span className="text-base text-brand-700 font-extrabold">₹{order.grandTotal}</span>
+                Total Bill:{' '}
+                {isOrderPendingQuote(order) && order.grandTotal === 0 ? (
+                  <span className="text-xs text-amber-900 font-extrabold bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                    Quote on Inspection
+                  </span>
+                ) : (
+                  <span className="text-base text-brand-700 font-extrabold">₹{order.grandTotal}</span>
+                )}
               </span>
             </div>
 
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden text-xs">
-              {order.items.map((item, idx) => (
-                <div key={idx} className="p-3.5 flex justify-between items-center bg-slate-50/50">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600">
-                      <Shirt className="w-3.5 h-3.5" />
+              {order.items.map((item, idx) => {
+                const isRange =
+                  isRangePriceItem({ name: item.name }) ||
+                  (item.notes || '').toLowerCase().includes('owner will connect') ||
+                  (item.notes || '').toLowerCase().includes('inspection');
+                const isPending = isRange && (item.rate === 0 || item.total === 0);
+
+                return (
+                  <div key={idx} className="p-3.5 flex justify-between items-center bg-slate-50/50">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600">
+                        <Shirt className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-800">{item.name}</span>
+                          {isPending && (
+                            <span className="text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded-full">
+                              Specialty Range
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 uppercase font-semibold">
+                          {item.serviceType.replace('_', ' ')} • Qty: {item.quantity}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-bold text-slate-800">{item.name}</span>
-                      <p className="text-[10px] text-slate-500 uppercase font-semibold">
-                        {item.serviceType.replace('_', ' ')} • Qty: {item.quantity}
-                      </p>
-                    </div>
+                    {isPending ? (
+                      <span className="text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                        Owner will connect
+                      </span>
+                    ) : (
+                      <span className="font-bold text-slate-900 text-sm">₹{item.total}</span>
+                    )}
                   </div>
-                  <span className="font-bold text-slate-900 text-sm">₹{item.total}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Payment badge */}
@@ -381,16 +433,27 @@ function TrackContent() {
                   Payment Status:{' '}
                   <span
                     className={`font-black uppercase ${
-                      order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'
+                      isOrderPendingQuote(order)
+                        ? 'text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full text-[10px]'
+                        : order.paymentStatus === 'paid'
+                        ? 'text-emerald-600'
+                        : 'text-amber-600'
                     }`}
                   >
-                    {order.paymentStatus}
+                    {isOrderPendingQuote(order) ? 'Quote Pending' : order.paymentStatus}
                   </span>
                 </p>
-                {order.balanceAmount > 0 ? (
+                {isOrderPendingQuote(order) ? (
+                  <p className="text-amber-800 font-semibold text-[11px] flex items-center gap-1 pt-0.5">
+                    <PhoneCall className="w-3 h-3 text-amber-600 shrink-0" />
+                    <span>Price on Inspection (Owner will connect with you)</span>
+                  </p>
+                ) : order.balanceAmount > 0 ? (
                   <p className="text-slate-500">Balance Due: ₹{order.balanceAmount}</p>
+                ) : order.grandTotal > 0 ? (
+                  <p className="text-emerald-600 font-bold">Fully Settled</p>
                 ) : (
-                  <p className="text-emerald-600">Fully Settled</p>
+                  <p className="text-amber-800 font-semibold text-[11px]">Quote Pending</p>
                 )}
               </div>
 

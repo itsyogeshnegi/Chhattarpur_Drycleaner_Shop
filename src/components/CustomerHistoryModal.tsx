@@ -18,7 +18,9 @@ import {
   ArrowRight,
   Search,
   Lock,
+  PhoneCall,
 } from 'lucide-react';
+import { isRangePriceItem, hasRangePriceItems } from '@/lib/servicePricing';
 
 interface OrderHistoryItem {
   _id: string;
@@ -29,7 +31,14 @@ interface OrderHistoryItem {
   paidAmount: number;
   balanceAmount: number;
   paymentStatus: string;
-  items: Array<{ name: string; serviceType: string; quantity: number; total?: number }>;
+  items: Array<{
+    name: string;
+    serviceType: string;
+    quantity: number;
+    rate?: number;
+    total?: number;
+    notes?: string;
+  }>;
   pickupDate?: string;
   deliveryOtp?: string;
   deliveryVerifiedBy?: string;
@@ -300,6 +309,11 @@ export default function CustomerHistoryModal({
                       0
                     );
 
+                    const isPendingQuote =
+                      (order.grandTotal === 0 && (!order.paidAmount || order.paidAmount === 0)) ||
+                      (hasRangePriceItems(order.items) &&
+                        order.items.some((it) => it.rate === 0 || it.rate === undefined));
+
                     return (
                       <div
                         key={order._id}
@@ -307,9 +321,17 @@ export default function CustomerHistoryModal({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                           <div>
-                            <span className="font-mono font-black text-xs sm:text-sm text-brand-700 block">
-                              {order.invoiceNumber}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-black text-xs sm:text-sm text-brand-700 block">
+                                {order.invoiceNumber}
+                              </span>
+                              {isPendingQuote && (
+                                <span className="font-bold text-[10px] bg-amber-50 text-amber-900 border border-amber-300 px-2 py-0.2 rounded-full inline-flex items-center gap-1">
+                                  <PhoneCall className="w-2.5 h-2.5 text-amber-700" />
+                                  Owner to Connect
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                               <Calendar className="w-3 h-3" />
                               {new Date(order.createdAt).toLocaleDateString('en-IN', {
@@ -329,20 +351,38 @@ export default function CustomerHistoryModal({
                             <span className="font-bold text-slate-800">
                               {totalPieces} {totalPieces === 1 ? 'Garment' : 'Garments'}
                             </span>
-                            <span className="font-extrabold text-slate-900">
-                              ₹{order.grandTotal}/-
-                            </span>
+                            {isPendingQuote && order.grandTotal === 0 ? (
+                              <span className="font-extrabold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[11px]">
+                                Quote on Inspection
+                              </span>
+                            ) : (
+                              <span className="font-extrabold text-slate-900">
+                                ₹{order.grandTotal}/-
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex flex-wrap gap-1 pt-1">
-                            {order.items.slice(0, 4).map((item, idx) => (
-                              <span
-                                key={idx}
-                                className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium"
-                              >
-                                {item.quantity}× {item.name}
-                              </span>
-                            ))}
+                            {order.items.slice(0, 4).map((item, idx) => {
+                              const isRange =
+                                isRangePriceItem({ name: item.name }) ||
+                                (item.notes || '').toLowerCase().includes('owner will connect') ||
+                                (item.notes || '').toLowerCase().includes('inspection');
+
+                              return (
+                                <span
+                                  key={idx}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${
+                                    isRange
+                                      ? 'bg-amber-50 text-amber-950 border border-amber-300 font-semibold'
+                                      : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  {item.quantity}× {item.name}
+                                  {isRange && ' • Quote'}
+                                </span>
+                              );
+                            })}
                             {order.items.length > 4 && (
                               <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">
                                 +{order.items.length - 4} more
@@ -370,12 +410,19 @@ export default function CustomerHistoryModal({
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                           <span className="text-[11px] font-semibold text-slate-500">
-                            {order.balanceAmount > 0 ? (
+                            {isPendingQuote ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                                <PhoneCall className="w-3 h-3 text-amber-700 shrink-0" />
+                                <span>Owner to Connect</span>
+                              </span>
+                            ) : order.balanceAmount > 0 ? (
                               <span className="text-amber-700 font-bold">
                                 Bal Due: ₹{order.balanceAmount}
                               </span>
-                            ) : (
+                            ) : order.grandTotal > 0 ? (
                               <span className="text-emerald-700 font-bold">✓ Settled</span>
+                            ) : (
+                              <span className="text-amber-700 font-bold">Quote Pending</span>
                             )}
                           </span>
 

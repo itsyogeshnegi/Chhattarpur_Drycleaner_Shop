@@ -131,6 +131,10 @@ npm run lint         # ESLint check
 
 ## Change Log
 
+- **2026-11-20:** Fixed customer order history modal ([`src/components/CustomerHistoryModal.tsx`](src/components/CustomerHistoryModal.tsx)) and live order tracking ([`src/app/track/page.tsx`](src/app/track/page.tsx)) displaying `✓ Settled` / `Fully Settled` and `₹0/-` for specialty range garments awaiting owner quote:
+  - Updated `CustomerHistoryModal` so orders with specialty range garments or rate-zero items display `Quote on Inspection` instead of `₹0/-`, tag specialty garments with `• Quote`, and show an amber `📞 Owner to Connect` badge instead of `✓ Settled`.
+  - Updated `/track` order list and details card so unquoted specialty items display `Quote on Inspection` for Total Bill, `Owner will connect` for individual garment rows, and `Quote Pending` with `Price on Inspection (Owner will connect with you)` under Payment Status, eliminating premature settlement messaging.
+
 - **2026-11-20:** Fixed Specialty Range (`Owner to Connect`) orders incorrectly displaying `₹0 ✓ Paid` by preventing zero-total orders and unquoted garments from being marked as paid during creation (`/api/orders/create`), and migrated existing MongoDB orders (`AHDC-2026-00006`, `AHDC-2026-00007`) from `paid` to `unpaid`; implemented `PATCH /api/orders/[id]/price` allowing store staff/admin to set rates for specialty garments after owner inspection, recalculating subtotals, taxes, balances, and 50% advance requirements while generating a WhatsApp quote message link; added an interactive **Set Price & Finalize Quote** modal in `/admin/orders` accessible via **[Set Price]** buttons on both mobile cards and desktop tables; and updated the customer digital invoice (`/invoice/[id]`) and Admin invoice (`/admin/invoices/[id]`) to display `Quote Pending` (amber), show an informative inspection banner with owner WhatsApp discussion link, and dynamically activate Razorpay 50% advance / full payment options once prices are confirmed.
 
 - **2026-11-16:** Updated invoice number generation to strict 5-digit sequential format starting at `00001` and cleaned `orderinvoices` collection:
